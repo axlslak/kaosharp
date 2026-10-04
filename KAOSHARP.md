@@ -1,4 +1,4 @@
-# KAOSharp 2.7.7
+# KAOSharp 2.7.8
 
 Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-knows-best/aosharp), based on upstream commit d55eb12b5a763e5ed65851e69c50343de6c6d73c. All upstream authorship and notices remain intact.
 
@@ -23,3 +23,7 @@ Remove an unused AOSharp.Bootstrap namespace import from TestPlugin/Main.cs that
 ## 2.7.7
 
 Fix startup ordering introduced in 2.7.5: loading the core and immediately initializing plugins allowed AOPluginEntry.Init to dereference DynelManager.LocalPlayer before the first core update populated it. Plugin assembly loading, constructors and initialization now wait until the core has a local player and is not zoning, on both the initial attempt and the clean retry. Core/game updates continue while waiting; waiting does not consume an attempt or report failure. Source review only; no builds or tests run.
+
+## 2.7.8
+
+Restore the injector's EasyHook reference and package path to 2.7.6789. The previous broad version replacement accidentally changed that dependency to 2.7.7789. Version updates now target the exact application version fields. No builds or tests run.
