@@ -7,7 +7,7 @@
         xmlns:Controls="http://metro.mahapps.com/winfx/xaml/controls"
         xmlns:Dialog="clr-namespace:MahApps.Metro.Controls.Dialogs;assembly=MahApps.Metro"
         mc:Ignorable="d"
-        Title="AO#" Height="450" Width="800">
+        Title="KAO# 2.7.5" Height="450" Width="1000">
     <Controls:MetroWindow.RightWindowCommands>
         <Controls:WindowCommands>
             <Button ToolTip="Tweaks"
@@ -99,13 +99,24 @@
                     <DataGridTemplateColumn Header="Enabled">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center" Click="PluginEnabledCheckBox_Click" IsChecked="{Binding Value.IsEnabled, UpdateSourceTrigger=PropertyChanged}" />
+                                <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center" Click="PluginEnabledCheckBox_Click" IsChecked="{Binding Value.IsEnabled, UpdateSourceTrigger=PropertyChanged}">
+                                    <CheckBox.Style>
+                                        <Style TargetType="CheckBox">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DataContext.ActiveProfile.IsInjected, RelativeSource={RelativeSource AncestorType={x:Type local:MainWindow}}}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="False" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </CheckBox.Style>
+                                </CheckBox>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                     <DataGridTextColumn Header="Name"
                                         Binding="{Binding Value.Name}"
                                         Width="200"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Value.LoadStatus}" Width="110"/>
                     <DataGridTextColumn Header="Version"
                                         Binding="{Binding Value.Version}" 
                                         Width="100"/>
@@ -131,7 +142,17 @@
                 <DataGrid.RowStyle>
                     <Style TargetType="DataGridRow" >
                         <Setter Property="ContextMenu" Value="{StaticResource RowMenu}" />
+                        <Setter Property="ToolTip" Value="{Binding Value.LoadDetail}" />
                         <Style.Triggers>
+                            <DataTrigger Binding="{Binding Value.LoadStatus}" Value="Initialized">
+                                <Setter Property="Foreground" Value="LimeGreen"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Value.LoadStatus}" Value="Failed">
+                                <Setter Property="Foreground" Value="Red"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Value.LoadStatus}" Value="Loading">
+                                <Setter Property="Foreground" Value="DarkOrange"/>
+                            </DataTrigger>
                             <DataTrigger Binding="{Binding Value.Path, Converter={StaticResource PathIsInvalidConverter}}" Value="True">
                                 <Setter Property="Foreground" Value="Red"/>
                             </DataTrigger>

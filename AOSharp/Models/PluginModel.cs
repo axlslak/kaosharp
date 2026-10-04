@@ -18,6 +18,22 @@ namespace AOSharp
 
         public string Path { get; set; }
 
+        private string _loadStatus = "Not injected";
+        private string _loadDetail = "";
+        [JsonIgnore]
+        public string LoadStatus
+        {
+            get => _loadStatus;
+            set { _loadStatus = value; OnPropertyChanged("LoadStatus"); }
+        }
+        [JsonIgnore]
+        public string LoadDetail
+        {
+            get => _loadDetail;
+            set { _loadDetail = value; OnPropertyChanged("LoadDetail"); }
+        }
+
+
         [JsonIgnore]
         public bool _isEnabled;
 

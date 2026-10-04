@@ -24,6 +24,7 @@ using MahApps.Metro.Controls.Dialogs;
 using AOSharp.Data;
 using AOSharp.Models;
 using Serilog;
+using AOSharp.Bootstrap.IPC;
 
 namespace AOSharp
 {
@@ -47,7 +48,10 @@ namespace AOSharp
             get { return _activeProfile; }
             set
             {
+                if (_activeProfile != null) _activeProfile.PluginStatusesChanged -= RefreshPluginStatuses;
                 _activeProfile = value;
+                if (_activeProfile != null) _activeProfile.PluginStatusesChanged += RefreshPluginStatuses;
+                RefreshPluginStatuses(this, EventArgs.Empty);
                 OnPropertyChanged("ActiveProfile");
             }
         }
@@ -95,6 +99,19 @@ namespace AOSharp
                 view.SortDescriptions.Clear();
                 view.SortDescriptions.Add(new SortDescription("Value.Name", ListSortDirection.Ascending));
                 view.Refresh();
+            }
+        }
+
+        private void RefreshPluginStatuses(object sender, EventArgs e)
+        {
+            foreach (PluginModel plugin in Config.Plugins.Values)
+            {
+                PluginStatusMessage status = null;
+                ActiveProfile?.PluginStatuses.TryGetValue(plugin.Path, out status);
+                plugin.LoadStatus = status == null ? "Not injected" :
+                    status.State == PluginLoadState.Initialized ? "Initialized" :
+                    status.State == PluginLoadState.Failed ? "Failed" : "Loading";
+                plugin.LoadDetail = status?.Detail ?? "";
             }
         }
 
@@ -160,7 +177,7 @@ namespace AOSharp
         {
             Profile selectedProfile = (Profile)ProfileListBox.SelectedItem;
 
-            if (selectedProfile == null)
+            if (selectedProfile == null || selectedProfile.IsInjected)
                 return;
 
             KeyValuePair<string, PluginModel> plugin = (KeyValuePair<string, PluginModel>)PluginsDataGrid.SelectedItem;
@@ -189,6 +206,7 @@ namespace AOSharp
                     plugin.IsEnabled = false;
 
                 PluginsDataGrid.IsEnabled = false;
+                return;
             }
             else if(!PluginsDataGrid.IsEnabled)
             {
@@ -214,11 +232,7 @@ namespace AOSharp
                 return;
             }
 
-            if(profile.Inject(plugins))
-            {
-                PluginsDataGrid.IsEnabled = false;
-            }
-            else
+            if (!profile.Inject(plugins))
             {
                 await this.ShowMessageAsync("Error", "Failed to inject.");
             }

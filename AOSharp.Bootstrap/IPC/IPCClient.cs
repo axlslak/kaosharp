@@ -38,6 +38,8 @@ namespace AOSharp.Bootstrap.IPC
         public void Connect(int timeout = 10000)
         {
             _client.Connect(timeout);
+            // Preserve boundaries when several plugin status messages arrive together.
+            _client.ReadMode = PipeTransmissionMode.Message;
 
             if (OnConnected != null)
                 OnConnected(this);
@@ -75,7 +77,7 @@ namespace AOSharp.Bootstrap.IPC
                 if(bytesRead == 0)
                     throw new IOException("bytesRead == 0");
             }
-            catch (IOException)
+            catch (Exception ex) when (ex is IOException || ex is ObjectDisposedException)
             {
                 if (OnDisconnected != null)
                     OnDisconnected(this);

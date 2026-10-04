@@ -95,6 +95,7 @@
     <Compile Include="IPC\IPCResponseMessage.cs" />
     <Compile Include="IPC\IPCServer.cs" />
     <Compile Include="IPC\Messages\LoadAssemblyMessage.cs" />
+    <Compile Include="IPC\Messages\PluginStatusMessage.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="PluginProxy.cs" />
     <Compile Include="ProcessChatInputPatcher.cs" />

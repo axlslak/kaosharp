@@ -2,6 +2,7 @@
 {
     public enum HookOpCode : byte
     {
-        LoadAssembly
+        LoadAssembly,
+        PluginStatus
     }
 }

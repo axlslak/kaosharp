@@ -1,4 +1,4 @@
-using AOSharp.Bootstrap.IPC;
+﻿using AOSharp.Bootstrap.IPC;
 using AOSharp.Common.GameData;
 using AOSharp.Common.Unmanaged.DataTypes;
 using AOSharp.Common.Unmanaged.Imports;
@@ -9,6 +9,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Collections.Concurrent;
+using System.Diagnostics;
 
 namespace AOSharp.Bootstrap
 {
@@ -22,7 +24,15 @@ namespace AOSharp.Bootstrap
         private static List<LocalHook> _hooks = new List<LocalHook>();
         private PluginProxy _pluginProxy;
         private ChatSocketListener _chatSocketListener;
-        private bool _exiting = false;
+        private volatile bool _exiting = false;
+        private string[] _pendingAssemblies;
+        private string[] _assemblies = new string[0];
+        private readonly ConcurrentQueue<PluginStatusMessage> _statusQueue = new ConcurrentQueue<PluginStatusMessage>();
+        private readonly Stopwatch _retryDelay = new Stopwatch();
+        private bool _retryUsed;
+        private bool _resultsReported;
+        private bool _environmentReady;
+
 
         private string _lastChatInput;
         private IntPtr _lastChatInputWindowPtr;
@@ -51,8 +61,19 @@ namespace AOSharp.Bootstrap
             if (!_connectEvent.WaitOne(10000))
                 return;
 
-            //Wait for the signal to unload the dll.
-            _unloadEvent.WaitOne();
+            // Pipe writes run on the bootstrap worker, never on the game thread.
+            while (!_unloadEvent.WaitOne(100))
+            {
+                while (_statusQueue.TryDequeue(out PluginStatusMessage status))
+                {
+                    try { _ipcPipe.Send(status); }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Could not report plugin status");
+                        break;
+                    }
+                }
+            }
         }
 
         private void OnIPCClientConnected(IPCServer pipe)
@@ -71,41 +92,107 @@ namespace AOSharp.Bootstrap
 
         private void OnAssembliesChanged(object pipe, IPCMessage message)
         {
+            // Load, initialize and tear down on the engine thread, not the pipe callback.
+            Interlocked.Exchange(ref _pendingAssemblies,
+                ((LoadAssemblyMessage)message).Assemblies.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+        }
+
+        private void Report(string path, PluginLoadState state, string detail)
+        {
+            _statusQueue.Enqueue(new PluginStatusMessage { Path = path, State = state, Detail = detail });
+        }
+
+        private void ScheduleRetry()
+        {
+            if (!_retryUsed && !_retryDelay.IsRunning)
+                _retryDelay.Restart();
+        }
+
+        private void LoadPluginEnvironment()
+        {
+            _resultsReported = false;
+            _environmentReady = false;
+            foreach (string path in _assemblies)
+                Report(path, PluginLoadState.Loading, _retryUsed ? "Clean retry: loading" : "Loading");
             try
             {
-                LoadAssemblyMessage msg = message as LoadAssemblyMessage;
-
-                if (_pluginAppDomain != null)
-                {
-                    //Release existing AppDomain
-                    AppDomain.Unload(_pluginAppDomain);
-                    _pluginAppDomain = null;
-                }
-
-                if (!msg.Assemblies.Any())
-                    return;
-
-                AppDomainSetup setup = new AppDomainSetup()
+                AppDomainSetup setup = new AppDomainSetup
                 {
                     ApplicationBase = AppDomain.CurrentDomain.BaseDirectory
                 };
-
                 _pluginAppDomain = AppDomain.CreateDomain("plugins", null, setup);
-
                 Type type = typeof(PluginProxy);
                 _pluginProxy = (PluginProxy)_pluginAppDomain.CreateInstanceAndUnwrap(type.Assembly.FullName, type.FullName);
-
                 _pluginProxy.LoadCore(_pluginAppDomain.BaseDirectory + "\\AOSharp.Core.dll");
-
-                foreach (string assembly in msg.Assemblies)
-                {
-                    _pluginProxy.LoadPlugin(assembly);
-                }
+                foreach (string path in _assemblies)
+                    _pluginProxy.LoadPlugin(path);
+                _environmentReady = true;
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                //TODO: Send IPC message back to loader on error
-                Log.Error(e.Message);
+                Log.Error(ex, "Could not load plugin environment");
+                _resultsReported = true;
+                foreach (string path in _assemblies)
+                    Report(path, PluginLoadState.Failed, "Environment load failed: " + ex);
+                ScheduleRetry();
+            }
+        }
+
+        private bool UnloadPluginEnvironment()
+        {
+            _environmentReady = false;
+            Exception failure = null;
+            try { _pluginProxy?.Teardown(); }
+            catch (Exception ex) { failure = ex; }
+            _pluginProxy = null;
+            try
+            {
+                if (_pluginAppDomain != null) AppDomain.Unload(_pluginAppDomain);
+                _pluginAppDomain = null;
+            }
+            catch (Exception ex) { failure = ex; }
+            if (failure == null) return true;
+
+            Log.Error(failure, "Plugin cleanup failed; automatic retry stopped");
+            foreach (string path in _assemblies)
+                Report(path, PluginLoadState.Failed, "Cleanup failed; eject before retrying: " + failure);
+            return false;
+        }
+
+        private void UpdatePluginLoading()
+        {
+            string[] requested = Interlocked.Exchange(ref _pendingAssemblies, null);
+            if (requested != null)
+            {
+                _retryDelay.Reset();
+                _retryUsed = false;
+                if (!UnloadPluginEnvironment()) return;
+                _assemblies = requested;
+                if (_assemblies.Length > 0) LoadPluginEnvironment();
+            }
+            else if (_retryDelay.IsRunning && _retryDelay.ElapsedMilliseconds >= 1000)
+            {
+                _retryDelay.Reset();
+                _retryUsed = true;
+                // Unload the entire domain so partially registered managed callbacks cannot accumulate.
+                if (!UnloadPluginEnvironment()) return;
+                LoadPluginEnvironment();
+            }
+
+            if (_pluginProxy == null || _resultsReported) return;
+            _pluginProxy.RunPluginInitializations();
+            PluginLoadResult[] results = _pluginProxy.GetLoadResults();
+            _resultsReported = true;
+            foreach (PluginLoadResult result in results)
+            {
+                string detail = result.Detail;
+                if (result.State == PluginLoadState.Failed)
+                {
+                    Log.Error("Plugin {Path}: {Detail}", result.Path, detail);
+                    detail += _retryUsed ? "\nAutomatic retry exhausted." : "\nClean retry scheduled in one second.";
+                    ScheduleRetry();
+                }
+                Report(result.Path, result.State, detail);
             }
         }
 
@@ -506,31 +593,25 @@ namespace AOSharp.Bootstrap
                 {
                     UnhookAll();
 
-                    _pluginProxy?.Teardown();
-
+                    UnloadPluginEnvironment();
                     N3EngineClientAnarchy_t.RunEngine(pThis, deltaTime);
-
-                    _pluginProxy?.Update(deltaTime);
-
-                    if (_pluginAppDomain != null)
-                    {
-                        AppDomain.Unload(_pluginAppDomain);
-                        _pluginAppDomain = null;
-                    }
 
                     //Notify the main thread that it is time to unload the dll.
                     _unloadEvent.Set();
                     _exiting = false;
                 } 
-                else if (_pluginProxy != null)
+                else
                 {
-                    _pluginProxy.RunPluginInitializations();
+                    try
+                    {
+                        UpdatePluginLoading();
+                        if (_environmentReady) _pluginProxy?.EarlyUpdate(deltaTime);
+                    }
+                    catch (Exception ex) { Log.Error(ex, "Plugin startup/update failed"); }
 
-                    _pluginProxy.EarlyUpdate(deltaTime);
-
+                    // The original engine must run even when plugin setup fails.
                     N3EngineClientAnarchy_t.RunEngine(pThis, deltaTime);
-
-                    _pluginProxy.Update(deltaTime);
+                    if (_environmentReady) _pluginProxy?.Update(deltaTime);
                 }
             }
             catch (Exception) { }

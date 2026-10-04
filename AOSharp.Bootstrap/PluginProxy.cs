@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using AOSharp.Bootstrap.IPC;
+using System.Linq;
 
 namespace AOSharp.Bootstrap
 {
@@ -65,6 +67,13 @@ namespace AOSharp.Bootstrap
     {
         private static CoreDelegates _coreDelegates;
         private List<Plugin> _plugins = new List<Plugin>();
+        private readonly Dictionary<string, PluginLoadResult> _results =
+            new Dictionary<string, PluginLoadResult>(StringComparer.OrdinalIgnoreCase);
+
+        public override object InitializeLifetimeService() => null;
+
+        public PluginLoadResult[] GetLoadResults() => _results.Values.ToArray();
+
 
         public int GetDynamicIDOverride(string name) => (_coreDelegates?.GetDynamicIDOverride?.Invoke(name)).GetValueOrDefault(0);
 
@@ -182,6 +191,10 @@ namespace AOSharp.Bootstrap
 
         public void LoadPlugin(string assemblyPath)
         {
+            _results[assemblyPath] = new PluginLoadResult
+            {
+                Path = assemblyPath, State = PluginLoadState.Loading, Detail = "Loading assembly"
+            };
             try
             {
                 //Load main assembly
@@ -232,11 +245,15 @@ namespace AOSharp.Bootstrap
                     if (instance == null) //Is this even possible?
                         continue;
 
-                    _plugins.Add(new Plugin(instance, initMethod, teardownMethod, Path.GetDirectoryName(assemblyPath)));
+                    _plugins.Add(new Plugin(instance, initMethod, teardownMethod, assemblyPath));
                 }
+                if (!_plugins.Any(p => p.AssemblyPath == assemblyPath))
+                    throw new InvalidOperationException("No usable AOSharp plugin entry point found.");
             }
             catch (Exception ex)
             {
+                _results[assemblyPath].State = PluginLoadState.Failed;
+                _results[assemblyPath].Detail = "Assembly load failed: " + ex;
             }
         }
 
@@ -244,25 +261,46 @@ namespace AOSharp.Bootstrap
         {
             foreach (Plugin plugin in _plugins)
             {
-                if (plugin.Initialized)
+                if (plugin.Attempted || _results[plugin.AssemblyPath].State == PluginLoadState.Failed)
                     continue;
-                
+
                 plugin.Initialize();
+                if (!plugin.Initialized)
+                {
+                    _results[plugin.AssemblyPath].State = PluginLoadState.Failed;
+                    _results[plugin.AssemblyPath].Detail = "Initialization failed: " + plugin.Error;
+                }
+            }
+            foreach (var result in _results.Values.Where(r => r.State != PluginLoadState.Failed))
+            {
+                if (_plugins.Where(p => p.AssemblyPath == result.Path).All(p => p.Initialized))
+                {
+                    result.State = PluginLoadState.Initialized;
+                    result.Detail = "Initialization completed";
+                }
             }
         }
 
         public void Teardown()
         {
-            _coreDelegates?.Teardown?.Invoke();
-
+            var failures = new List<Exception>();
+            try { _coreDelegates?.Teardown?.Invoke(); }
+            catch (Exception ex) { failures.Add(ex); }
             foreach (Plugin plugin in _plugins)
-                plugin.Teardown();
+            {
+                try { plugin.Teardown(); }
+                catch (Exception ex) { failures.Add(ex); }
+            }
+            if (failures.Count > 0) throw new AggregateException("Plugin teardown failed", failures);
         }
     }
 
     public class Plugin
     {
         public bool Initialized;
+        public bool Attempted;
+        public string Error;
+        public string AssemblyPath { get; private set; }
 
         private object _instance;
         private MethodInfo _initMethod;
@@ -275,27 +313,29 @@ namespace AOSharp.Bootstrap
             _instance = instance;
             _initMethod = initMethod;
             _teardownMethod = teardownMethod;
-            _assemblyDir = assemblyDir;
+            AssemblyPath = assemblyDir;
+            _assemblyDir = Path.GetDirectoryName(assemblyDir);
         }
 
         public void Initialize()
         {
+            Attempted = true;
             try
             {
                 _initMethod.Invoke(_instance, new object[] { _assemblyDir });
+                Initialized = true;
             }
-            catch { }
-
-            Initialized = true;
+            catch (Exception ex)
+            {
+                Error = (ex is TargetInvocationException && ex.InnerException != null
+                    ? ex.InnerException : ex).ToString();
+            }
         }
 
         public void Teardown()
         {
-            try
-            {
-                _teardownMethod.Invoke(_instance, null);
-            }
-            catch { }
+            if (!Attempted) return;
+            _teardownMethod.Invoke(_instance, null);
         }
     }
 }
