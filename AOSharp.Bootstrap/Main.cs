@@ -32,6 +32,7 @@ namespace AOSharp.Bootstrap
         private bool _retryUsed;
         private bool _resultsReported;
         private bool _environmentReady;
+        private bool _pluginsLoaded;
 
 
         private string _lastChatInput;
@@ -111,6 +112,7 @@ namespace AOSharp.Bootstrap
         private void LoadPluginEnvironment()
         {
             _resultsReported = false;
+            _pluginsLoaded = false;
             _environmentReady = false;
             foreach (string path in _assemblies)
                 Report(path, PluginLoadState.Loading, _retryUsed ? "Clean retry: loading" : "Loading");
@@ -124,8 +126,9 @@ namespace AOSharp.Bootstrap
                 Type type = typeof(PluginProxy);
                 _pluginProxy = (PluginProxy)_pluginAppDomain.CreateInstanceAndUnwrap(type.Assembly.FullName, type.FullName);
                 _pluginProxy.LoadCore(_pluginAppDomain.BaseDirectory + "\\AOSharp.Core.dll");
+                // Core updates must discover the player before plugin constructors or Init run.
                 foreach (string path in _assemblies)
-                    _pluginProxy.LoadPlugin(path);
+                    Report(path, PluginLoadState.Loading, "Waiting for the player to be ready");
                 _environmentReady = true;
             }
             catch (Exception ex)
@@ -180,6 +183,14 @@ namespace AOSharp.Bootstrap
             }
 
             if (_pluginProxy == null || _resultsReported) return;
+            // Waiting for core readiness is not a failed attempt and does not consume a retry.
+            if (!_pluginProxy.IsGameReady()) return;
+            if (!_pluginsLoaded)
+            {
+                foreach (string path in _assemblies)
+                    _pluginProxy.LoadPlugin(path);
+                _pluginsLoaded = true;
+            }
             _pluginProxy.RunPluginInitializations();
             PluginLoadResult[] results = _pluginProxy.GetLoadResults();
             _resultsReported = true;

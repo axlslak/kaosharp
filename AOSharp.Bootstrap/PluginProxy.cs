@@ -66,6 +66,14 @@ namespace AOSharp.Bootstrap
     public class PluginProxy : MarshalByRefObject
     {
         private static CoreDelegates _coreDelegates;
+        private PropertyInfo _localPlayerProperty;
+        private PropertyInfo _isZoningProperty;
+
+        public bool IsGameReady()
+        {
+            return _localPlayerProperty.GetValue(null) != null
+                && !(bool)_isZoningProperty.GetValue(null);
+        }
         private List<Plugin> _plugins = new List<Plugin>();
         private readonly Dictionary<string, PluginLoadResult> _results =
             new Dictionary<string, PluginLoadResult>(StringComparer.OrdinalIgnoreCase);
@@ -156,6 +164,11 @@ namespace AOSharp.Bootstrap
             {
                 Assembly.Load(reference);
             }
+
+            _localPlayerProperty = assembly.GetType("AOSharp.Core.DynelManager", true).GetProperty("LocalPlayer");
+            _isZoningProperty = assembly.GetType("AOSharp.Core.Game", true).GetProperty("IsZoning");
+            if (_localPlayerProperty == null || _isZoningProperty == null)
+                throw new MissingMemberException("AOSharp.Core does not expose the required startup readiness properties.");
 
             _coreDelegates = new CoreDelegates()
             {
