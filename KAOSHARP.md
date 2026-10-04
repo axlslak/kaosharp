@@ -1,4 +1,4 @@
-# KAOSharp 2.7.5
+# KAOSharp 2.7.6
 
 Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-knows-best/aosharp), based on upstream commit d55eb12b5a763e5ed65851e69c50343de6c6d73c. All upstream authorship and notices remain intact.
 
@@ -15,3 +15,7 @@ This retry covers reported assembly/core loading and plugin initialization failu
 ## Source-only validation
 
 Changes were reviewed as source. No compilation, tests, injection, or release publishing was performed. In-game verification remains pending.
+
+## 2.7.6
+
+Remove an unused AOSharp.Bootstrap namespace import from TestPlugin/Main.cs that caused CS0234 when building the solution. The supplied 2.7.5 build log showed AOSharp.exe and Bootstrap compiled successfully; dependency-version warnings remain unresolved. No builds or tests were run for this source fix.
