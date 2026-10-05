@@ -7,7 +7,7 @@
         xmlns:Controls="http://metro.mahapps.com/winfx/xaml/controls"
         xmlns:Dialog="clr-namespace:MahApps.Metro.Controls.Dialogs;assembly=MahApps.Metro"
         mc:Ignorable="d"
-        Title="KAO# 2.7.8" Height="450" Width="1000">
+        Title="KAO# 2.7.9" Height="450" Width="1000">
     <Controls:MetroWindow.RightWindowCommands>
         <Controls:WindowCommands>
             <Button ToolTip="Tweaks"
@@ -40,6 +40,12 @@
             <local:BoolToVisibilityConverter x:Key="BoolToVisibleConverter"
                                              TrueValue="Visible" 
                                              FalseValue="Collapsed" />
+            <!-- Bind text directly: selected-cell theme brushes must not hide row status colors. -->
+            <Style x:Key="PluginStatusTextStyle" TargetType="{x:Type TextBlock}"
+                   BasedOn="{x:Static DataGridTextColumn.DefaultElementStyle}">
+                <Setter Property="Foreground"
+                        Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type DataGridRow}}}"/>
+            </Style>
             <local:RemovePluginConverter x:Key="RemovePluginConverter"/>
             <local:PathIsInvalidConverter x:Key="PathIsInvalidConverter"/>
         </ResourceDictionary>
@@ -113,14 +119,14 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="Name"
+                    <DataGridTextColumn ElementStyle="{StaticResource PluginStatusTextStyle}" Header="Name"
                                         Binding="{Binding Value.Name}"
                                         Width="200"/>
-                    <DataGridTextColumn Header="Status" Binding="{Binding Value.LoadStatus}" Width="110"/>
-                    <DataGridTextColumn Header="Version"
+                    <DataGridTextColumn ElementStyle="{StaticResource PluginStatusTextStyle}" Header="Status" Binding="{Binding Value.LoadStatus}" Width="110"/>
+                    <DataGridTextColumn ElementStyle="{StaticResource PluginStatusTextStyle}" Header="Version"
                                         Binding="{Binding Value.Version}" 
                                         Width="100"/>
-                    <DataGridTextColumn Header="Source"
+                    <DataGridTextColumn ElementStyle="{StaticResource PluginStatusTextStyle}" Header="Source"
                                         Binding="{Binding Value.Path}" 
                                         Width="*"/>
                 </DataGrid.Columns>
