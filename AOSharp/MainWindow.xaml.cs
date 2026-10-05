@@ -177,13 +177,17 @@ namespace AOSharp
         {
             Profile selectedProfile = (Profile)ProfileListBox.SelectedItem;
 
-            if (selectedProfile == null || selectedProfile.IsInjected)
+            if (selectedProfile == null)
                 return;
 
-            KeyValuePair<string, PluginModel> plugin = (KeyValuePair<string, PluginModel>)PluginsDataGrid.SelectedItem;
+            KeyValuePair<string, PluginModel> plugin = (KeyValuePair<string, PluginModel>)((CheckBox)sender).DataContext;
 
+            // These choices are for the next injection; the running loader owns its snapshot.
             if (plugin.Value.IsEnabled)
-                selectedProfile.EnabledPlugins.Add(plugin.Key);
+            {
+                if (!selectedProfile.EnabledPlugins.Contains(plugin.Key))
+                    selectedProfile.EnabledPlugins.Add(plugin.Key);
+            }
             else
                 selectedProfile.EnabledPlugins.Remove(plugin.Key);
 
@@ -248,6 +252,54 @@ namespace AOSharp
             profile.Eject();
 
             PluginsDataGrid.IsEnabled = true;
+        }
+
+        private async void InjectAllButton_Clicked(object sender, RoutedEventArgs e)
+        {
+            var profiles = ((ProfilesModel)ProfileListBox.DataContext).Profiles
+                .Where(profile => profile.IsActive && !profile.IsInjected).ToArray();
+            var failures = new List<string>();
+
+            foreach (Profile profile in profiles)
+            {
+                string[] plugins = Config.Plugins
+                    .Where(plugin => profile.EnabledPlugins.Contains(plugin.Key))
+                    .Select(plugin => plugin.Value.Path).ToArray();
+
+                if (plugins.Length == 0)
+                    continue;
+
+                if (!profile.Inject(plugins))
+                    failures.Add(profile.Name);
+            }
+
+            if (failures.Count > 0)
+                await this.ShowMessageAsync("Injection failed",
+                    "Could not inject: " + string.Join(", ", failures));
+        }
+
+        private async void EjectAllButton_Clicked(object sender, RoutedEventArgs e)
+        {
+            var profiles = ((ProfilesModel)ProfileListBox.DataContext).Profiles
+                .Where(profile => profile.IsActive && profile.IsInjected).ToArray();
+            var failures = new List<string>();
+
+            foreach (Profile profile in profiles)
+            {
+                try
+                {
+                    profile.Eject();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to eject profile {Profile}", profile.Name);
+                    failures.Add(profile.Name);
+                }
+            }
+
+            if (failures.Count > 0)
+                await this.ShowMessageAsync("Ejection failed",
+                    "Could not eject: " + string.Join(", ", failures));
         }
 
         private void TweaksButton_Click(object sender, RoutedEventArgs e)

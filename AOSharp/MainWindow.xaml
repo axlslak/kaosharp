@@ -7,7 +7,7 @@
         xmlns:Controls="http://metro.mahapps.com/winfx/xaml/controls"
         xmlns:Dialog="clr-namespace:MahApps.Metro.Controls.Dialogs;assembly=MahApps.Metro"
         mc:Ignorable="d"
-        Title="KAO# 2.7.9" Height="450" Width="1000">
+        Title="KAO# 2.7.10" Height="450" Width="1000">
     <Controls:MetroWindow.RightWindowCommands>
         <Controls:WindowCommands>
             <Button ToolTip="Tweaks"
@@ -75,6 +75,10 @@
             </ListBox.ItemContainerStyle>
         </ListBox>
         <DockPanel Grid.Column="1">
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
+                <Button Margin="3" Padding="10,3" Click="InjectAllButton_Clicked">Inject All</Button>
+                <Button Margin="3" Padding="10,3" Click="EjectAllButton_Clicked">Eject All</Button>
+            </StackPanel>
             <Grid DockPanel.Dock="Top">
                 <Grid Name="InjectButtonContainer" Visibility="{Binding HasProfileSelected, Converter={StaticResource BoolToVisibleConverter}}">
                     <Button Width="70" 
@@ -102,19 +106,10 @@
                       IsReadOnly="true"
                       SelectedItem="{Binding SelectedRow, Mode=TwoWay}">
                 <DataGrid.Columns>
-                    <DataGridTemplateColumn Header="Enabled">
+                    <DataGridTemplateColumn Header="Enabled (next injection)">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center" Click="PluginEnabledCheckBox_Click" IsChecked="{Binding Value.IsEnabled, UpdateSourceTrigger=PropertyChanged}">
-                                    <CheckBox.Style>
-                                        <Style TargetType="CheckBox">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding DataContext.ActiveProfile.IsInjected, RelativeSource={RelativeSource AncestorType={x:Type local:MainWindow}}}" Value="True">
-                                                    <Setter Property="IsEnabled" Value="False" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </CheckBox.Style>
                                 </CheckBox>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
