@@ -46,8 +46,10 @@ namespace AOSharp.Core
             if (target == null)
                 target = DynelManager.LocalPlayer;
 
-            if(setTarget)
+            if (setTarget)
                 target.Target();
+
+            Chat.WriteLine("Executing Nano Program: " + Name + ".", ChatColor.LightBlue);
 
             Network.Send(new CharacterActionMessage()
             {
@@ -75,8 +77,8 @@ namespace AOSharp.Core
         {
             try
             {
-            if (_pendingCast.Spell != null && _pendingCast.Timeout <= Time.NormalTime)
-                _pendingCast.Spell = null;
+                if (_pendingCast.Spell != null && _pendingCast.Timeout <= Time.NormalTime)
+                    _pendingCast.Spell = null;
             }
             catch (Exception e)
             {

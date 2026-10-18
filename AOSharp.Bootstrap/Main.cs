@@ -334,7 +334,9 @@ namespace AOSharp.Bootstrap
             int bytesRead = Ws2_32.recv(socket, buffer, len, flags);
 
             if (bytesRead == -1)
-                return bytesRead;
+            {
+                return 0;
+            }
 
             if (_pluginProxy != null && socket == ChatSocketListener.Socket)
             {

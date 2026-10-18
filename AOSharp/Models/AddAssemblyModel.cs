@@ -9,15 +9,14 @@ namespace AOSharp.Models
 {
     public class AddAssemblyModel : INotifyPropertyChanged
     {
-        public string _dllPath;
-
-        public string DllPath
+        private List<string> _dllPaths = new List<string>();
+        public List<string> DllPaths
         {
-            get { return _dllPath; }
+            get => _dllPaths;
             set
             {
-                _dllPath = value;
-                OnPropertyChanged("DllPath");
+                _dllPaths = value;
+                OnPropertyChanged("DllPaths");
             }
         }
 
@@ -25,10 +24,8 @@ namespace AOSharp.Models
 
         private void OnPropertyChanged(string propertyName)
         {
-            if (PropertyChanged != null)
-            {
-                PropertyChanged(this, new PropertyChangedEventArgs(propertyName));
-            }
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
+
 }

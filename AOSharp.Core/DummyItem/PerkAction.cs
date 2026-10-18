@@ -47,6 +47,8 @@ namespace AOSharp.Core
             if (setTarget)
                 target.Target();
 
+            Chat.WriteLine("Executing Perk Action: " + Name + ".", ChatColor.DarkPink);
+
             if (packetOnly)
             {
                 Network.Send(new CharacterActionMessage()

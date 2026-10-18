@@ -7,7 +7,11 @@
         xmlns:Controls="http://metro.mahapps.com/winfx/xaml/controls"
         xmlns:Dialog="clr-namespace:MahApps.Metro.Controls.Dialogs;assembly=MahApps.Metro"
         mc:Ignorable="d"
-        Title="KAO# 2.7.10" Height="450" Width="1000">
+        Title="KAO# 2.7.11"
+        Width="1000"
+        Height="450"
+        MinWidth="1000"
+        MinHeight="450">
     <Controls:MetroWindow.RightWindowCommands>
         <Controls:WindowCommands>
             <Button ToolTip="Tweaks"
@@ -20,20 +24,6 @@
     </Controls:MetroWindow.RightWindowCommands>
     <Window.Resources>
         <ResourceDictionary>
-            <Dialog:CustomDialog x:Key="AddPluginDialog"
-                                 x:Name="AddPluginDialog"
-                                 Title="Add Plugin">
-                <StackPanel>
-                    <Grid Margin="10">
-                        <TextBox IsReadOnly="True" Text="{Binding DllPath, UpdateSourceTrigger=PropertyChanged}"></TextBox>
-                        <Button HorizontalAlignment="Right" Width="32" Content="..." Click="LocalPathDialogButton_Click"/>
-                    </Grid>
-                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
-                        <Button Margin="10" Width="84" Click="AddPluginButton_Click">Add</Button>
-                        <Button Margin="10" Width="84" Click="CloseAddPluginDialog">Cancel</Button>
-                    </StackPanel>
-                </StackPanel>
-            </Dialog:CustomDialog>
             <local:BoolToVisibilityConverter x:Key="BoolToHiddenConverter"
                                              TrueValue="Collapsed" 
                                              FalseValue="Visible" />
@@ -52,15 +42,16 @@
     </Window.Resources>
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="23*"/>
-            <ColumnDefinition Width="76*"/>
+            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
-        <ListBox Name="ProfileListBox" 
-                 BorderThickness="1" 
-                 Grid.ColumnSpan="1" 
-                 ItemsSource="{Binding Path=Profiles}" 
-                 DisplayMemberPath="Name"
-                 SelectionChanged="ProfileListBox_SelectionChanged">
+        <ListBox Name="ProfileListBox"
+         Grid.Column="0"
+         BorderThickness="2"
+         ItemsSource="{Binding Profiles}"
+         DisplayMemberPath="Name"
+         SelectionChanged="ProfileListBox_SelectionChanged">
+
             <ListBox.ItemContainerStyle>
                 <Style TargetType="{x:Type ListBoxItem}">
                     <Style.Triggers>
@@ -73,43 +64,56 @@
                     </Style.Triggers>
                 </Style>
             </ListBox.ItemContainerStyle>
+
         </ListBox>
+
         <DockPanel Grid.Column="1">
-            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
-                <Button Margin="3" Padding="10,3" Click="InjectAllButton_Clicked">Inject All</Button>
-                <Button Margin="3" Padding="10,3" Click="EjectAllButton_Clicked">Eject All</Button>
-            </StackPanel>
-            <Grid DockPanel.Dock="Top">
-                <Grid Name="InjectButtonContainer" Visibility="{Binding HasProfileSelected, Converter={StaticResource BoolToVisibleConverter}}">
-                    <Button Width="70" 
-                            HorizontalAlignment="Left"
-                            Margin="3"
-                            Visibility="{Binding ActiveProfile.IsInjected, Converter={StaticResource BoolToVisibleConverter}}"
-                            Click="EjectButton_Clicked">Eject</Button>
-                    <Button Width="70" 
-                            HorizontalAlignment="Left"
-                            Margin="3"
-                            Visibility="{Binding ActiveProfile.IsInjected, Converter={StaticResource BoolToHiddenConverter}}"
-                            Click="InjectButton_Clicked">Inject</Button>
+            <DockPanel DockPanel.Dock="Top" Margin="3">
+                <Grid Name="InjectButtonContainer" Width="76" DockPanel.Dock="Left"
+                      Visibility="{Binding HasProfileSelected, Converter={StaticResource BoolToVisibleConverter}}">
+                    <Button Margin="3" Click="InjectButton_Clicked"
+                            Visibility="{Binding ActiveProfile.IsInjected, Converter={StaticResource BoolToHiddenConverter}}">Inject</Button>
+                    <Button Margin="3" Click="EjectButton_Clicked"
+                            Visibility="{Binding ActiveProfile.IsInjected, Converter={StaticResource BoolToVisibleConverter}}">Eject</Button>
                 </Grid>
-                <Button Width="100" 
-                        HorizontalAlignment="Right"
-                        Margin="3"
-                        Click="ShowAddPluginDialog">Add Plugin</Button>
-            </Grid>
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                    <Button Margin="3" Padding="10,3" Click="InjectAllButton_Clicked">Inject All</Button>
+                    <Button Margin="3" Padding="10,3" Click="EjectAllButton_Clicked">Eject All</Button>
+                </StackPanel>
+                <Button HorizontalAlignment="Right" Margin="3" Padding="10,3" Click="ShowAddPluginDialog">Add Plugin</Button>
+            </DockPanel>
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,0,6,3">
+                <TextBlock VerticalAlignment="Center" Margin="0,0,6,0" Text="Plugin profile"/>
+                <ComboBox x:Name="UserProfileComboBox" Width="180" Margin="0,0,6,0" IsEditable="True"
+                          ItemsSource="{Binding UserProfileNames}"
+                          Text="{Binding SelectedUserPluginProfile, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                <Button Width="55" Margin="0,0,4,0" Click="SaveUserPluginProfileButton_Click">Save</Button>
+                <Button Width="55" Margin="0,0,4,0" Click="LoadUserPluginProfileButton_Click">Load</Button>
+                <Button Width="55" Click="DeleteUserPluginProfileButton_Click">Del</Button>
+            </StackPanel>
             <DataGrid Name="PluginsDataGrid"
-                      Margin="0,0,5,0"
-                      ItemsSource="{Binding Path=Plugins}"
-                      AutoGenerateColumns="False" 
-                      CanUserAddRows="False"
-                      IsEnabled="false"
-                      IsReadOnly="true"
-                      SelectedItem="{Binding SelectedRow, Mode=TwoWay}">
+          Margin="5"
+          HorizontalAlignment="Stretch"
+          VerticalAlignment="Stretch"
+          ItemsSource="{Binding Path=Plugins}"
+          AutoGenerateColumns="False"
+          CanUserAddRows="False"
+          IsEnabled="true"
+          IsReadOnly="true"
+          SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+          GridLinesVisibility="All"
+          HorizontalGridLinesBrush="#555555"
+          VerticalGridLinesBrush="#555555"
+          AlternationCount="2"
+          RowBackground="#2A2A2A"
+          AlternatingRowBackground="#242424">
+
                 <DataGrid.Columns>
                     <DataGridTemplateColumn Header="Enabled (next injection)">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center" Click="PluginEnabledCheckBox_Click" IsChecked="{Binding Value.IsEnabled, UpdateSourceTrigger=PropertyChanged}">
+                                <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center" Click="PluginEnabledCheckBox_Click" IsChecked="{Binding Value.IsEnabled, UpdateSourceTrigger=PropertyChanged}"
+                                          IsEnabled="{Binding DataContext.HasProfileSelected, RelativeSource={RelativeSource AncestorType=Window}}">
                                 </CheckBox>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
@@ -126,24 +130,43 @@
                                         Width="*"/>
                 </DataGrid.Columns>
                 <DataGrid.Resources>
-                    <ContextMenu  x:Key="RowMenu" DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                    <ContextMenu x:Key="RowMenu"
+                     DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                         <MenuItem Header="Remove" Command="{Binding Value.RemoveCommand}">
                             <MenuItem.CommandParameter>
                                 <MultiBinding Converter="{StaticResource RemovePluginConverter}">
-                                    <Binding Path="DataContext.Plugins" RelativeSource="{RelativeSource FindAncestor, AncestorType={x:Type DataGrid}}"/>
+                                    <Binding Path="DataContext.Plugins"
+                                 RelativeSource="{RelativeSource FindAncestor, AncestorType={x:Type DataGrid}}"/>
                                     <Binding Path="Key"/>
                                 </MultiBinding>
                             </MenuItem.CommandParameter>
                         </MenuItem>
+                        <MenuItem Header="Remove All" Click="RemoveAllPlugins_Click"/>
                     </ContextMenu>
-                    <Style x:Key="DefaultRowStyle" TargetType="{x:Type DataGridRow}">
-                        <Setter Property="ContextMenu" Value="{StaticResource RowMenu}" />
+
+                    <Style TargetType="DataGridCell">
+                        <Setter Property="BorderBrush" Value="#555555"/>
+                        <Setter Property="BorderThickness" Value="0.5"/>
+                        <Setter Property="Padding" Value="4,2"/>
+                    </Style>
+
+                    <Style TargetType="DataGridColumnHeader">
+                        <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.GrayBrush}" />
+                        <Setter Property="Foreground" Value="White"/>
+                        <Setter Property="BorderBrush" Value="#555555"/>
+                        <Setter Property="BorderThickness" Value="1"/>
+                        <Setter Property="Padding" Value="4,2,4,2"/>
+                        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                        <Setter Property="VerticalContentAlignment" Value="Center"/>
                     </Style>
                 </DataGrid.Resources>
+
                 <DataGrid.RowStyle>
-                    <Style TargetType="DataGridRow" >
+                    <Style TargetType="DataGridRow">
                         <Setter Property="ContextMenu" Value="{StaticResource RowMenu}" />
-                        <Setter Property="ToolTip" Value="{Binding Value.LoadDetail}" />
+                        <Setter Property="ToolTip" Value="{Binding Value.LoadDetail}"/>
+                        <Setter Property="BorderBrush" Value="#555555"/>
+                        <Setter Property="BorderThickness" Value="0,0,0,0.5"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding Value.LoadStatus}" Value="Initialized">
                                 <Setter Property="Foreground" Value="LimeGreen"/>
@@ -157,10 +180,14 @@
                             <DataTrigger Binding="{Binding Value.Path, Converter={StaticResource PathIsInvalidConverter}}" Value="True">
                                 <Setter Property="Foreground" Value="Red"/>
                             </DataTrigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#3A3A3A"/>
+                            </Trigger>
                         </Style.Triggers>
                     </Style>
                 </DataGrid.RowStyle>
             </DataGrid>
+
         </DockPanel>
     </Grid>
 </Controls:MetroWindow>

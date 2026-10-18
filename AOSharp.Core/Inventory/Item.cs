@@ -55,6 +55,8 @@ namespace AOSharp.Core.Inventory
             if (setTarget)
                 target.Target();
 
+            Chat.WriteLine("Using item: " + Name + ".", ChatColor.Orange);
+
             Network.Send(new GenericCmdMessage()
             {
                 Action = GenericCmdAction.Use,
@@ -162,7 +164,7 @@ namespace AOSharp.Core.Inventory
                 if (_pendingUse.Slot != Identity.None && _pendingUse.Timeout <= Time.NormalTime)
                     _pendingUse.Slot = Identity.None;
             }
-            catch (Exception e) 
+            catch (Exception e)
             {
                 Chat.WriteLine($"This shouldn't happen pls report (Item): {e.Message}");
             }
@@ -229,7 +231,7 @@ namespace AOSharp.Core.Inventory
             });
 
             if (owner != DynelManager.LocalPlayer.Identity)
-                    return;
+                return;
 
             _pendingUse = (Identity.None, 0);
 

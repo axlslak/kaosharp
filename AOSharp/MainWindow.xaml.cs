@@ -1,22 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
 using System.IO;
-using System.Threading.Tasks;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-using System.Collections.Specialized;
 using System.ComponentModel;
 using Microsoft.Win32;
 using MahApps.Metro.Controls;
@@ -33,15 +25,25 @@ namespace AOSharp
     /// </summary>
     public partial class MainWindow : MetroWindow, INotifyPropertyChanged
     {
-        //private ObservableCollection<Profile> _profiles;
-        //public ObservableCollection<Profile> Profiles { get { return _profiles; } }
-
-        //private ObservableCollection<Assembly> _assemblies;
-        //public ObservableCollection<Assembly> Assemblies { get { return _assemblies; } }
-
         public Config Config;
 
         private Profile _activeProfile;
+        private Dictionary<string, Dictionary<string, List<string>>> _userPluginProfiles = new Dictionary<string, Dictionary<string, List<string>>>();
+        private readonly ObservableCollection<string> _userProfileNames = new ObservableCollection<string>();
+        private string _userProfilesPath => Path.Combine(Directories.CurrentDirectory, "userPluginProfiles.json");
+        private string _selectedUserPluginProfile;
+
+        public ObservableCollection<string> UserProfileNames => _userProfileNames;
+
+        public string SelectedUserPluginProfile
+        {
+            get => _selectedUserPluginProfile;
+            set
+            {
+                _selectedUserPluginProfile = value;
+                OnPropertyChanged(nameof(SelectedUserPluginProfile));
+            }
+        }
 
         public Profile ActiveProfile
         {
@@ -70,9 +72,6 @@ namespace AOSharp
 
         public MainWindow()
         {
-            //_profiles = GetProfiles();
-            //_assemblies = GetAssemblies();
-
             Log.Logger = new LoggerConfiguration()
                 .WriteTo.File("Log.txt", rollingInterval: RollingInterval.Day)
                 .CreateLogger();
@@ -81,7 +80,6 @@ namespace AOSharp
 
             Config.Plugins.CollectionChanged += (object sender, NotifyCollectionChangedEventArgs e) =>
             {
-                if(e.Action == NotifyCollectionChangedAction.Add || e.Action == NotifyCollectionChangedAction.Remove)
                 Config.Save();
             };
 
@@ -89,10 +87,25 @@ namespace AOSharp
 
             InitializeComponent();
 
+            try
+            {
+                if (File.Exists(_userProfilesPath))
+                    _userPluginProfiles = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string, List<string>>>>(File.ReadAllText(_userProfilesPath))
+                        ?? new Dictionary<string, Dictionary<string, List<string>>>();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to read plugin profiles from {Path}", _userProfilesPath);
+                Loaded += async (sender, args) => await this.ShowMessageAsync("Plugin profiles", "Could not read saved plugin profiles: " + ex.Message);
+            }
+            foreach (string name in _userPluginProfiles.Keys)
+                _userProfileNames.Add(name);
+            SelectedUserPluginProfile = _userProfileNames.FirstOrDefault();
+
             PluginsDataGrid.DataContext = Config;
             ProfileListBox.DataContext = new ProfilesModel(Config);
 
-            // Set default sort for PluginsDataGrid "Name" column descending
+            // Sort plugin names alphabetically.
             ICollectionView view = CollectionViewSource.GetDefaultView(PluginsDataGrid.ItemsSource);
             if (view != null)
             {
@@ -115,62 +128,86 @@ namespace AOSharp
             }
         }
 
+        private void SaveUserPluginProfile(string profileName)
+        {
+            var data = new Dictionary<string, List<string>>();
+            foreach (var profile in Config.Profiles)
+            {
+                data[profile.Name] = new List<string>(profile.EnabledPlugins);
+            }
+
+            _userPluginProfiles[profileName] = data;
+
+            File.WriteAllText(_userProfilesPath, Newtonsoft.Json.JsonConvert.SerializeObject(_userPluginProfiles, Newtonsoft.Json.Formatting.Indented));
+        }
+
+        private void LoadUserPluginProfile(string profileName)
+        {
+            if (!_userPluginProfiles.ContainsKey(profileName))
+                return;
+
+            var selectedData = _userPluginProfiles[profileName];
+            foreach (var profile in Config.Profiles)
+            {
+                if (selectedData.ContainsKey(profile.Name))
+                {
+                    profile.EnabledPlugins = new ObservableCollection<string>(selectedData[profile.Name]);
+                }
+                else
+                {
+                    profile.EnabledPlugins.Clear();
+                }
+            }
+
+            if (ActiveProfile != null)
+            {
+                foreach (var plugin in Config.Plugins)
+                {
+                    plugin.Value.IsEnabled = ActiveProfile.EnabledPlugins.Contains(plugin.Key);
+                }
+            }
+
+            Config.Save();
+        }
+
         private async void ShowAddPluginDialog(object sender, RoutedEventArgs e)
         {
-            BaseMetroDialog dialog = (BaseMetroDialog)this.Resources["AddPluginDialog"];
-            dialog.DataContext = new AddAssemblyModel();
-            await this.ShowMetroDialogAsync(dialog);
-            await dialog.WaitUntilUnloadedAsync();
-        }
-
-        private async void CloseAddPluginDialog(object sender, RoutedEventArgs e)
-        {
-            BaseMetroDialog dialog = (BaseMetroDialog)this.Resources["AddPluginDialog"];
-            await this.HideMetroDialogAsync(dialog);
-        }
-
-        private void LocalPathDialogButton_Click(object sender, RoutedEventArgs e)
-        {
-            OpenFileDialog dialog = new OpenFileDialog() { Filter = "DLL Files (*.dll)|*.dll" };
-
-            if (dialog.ShowDialog() == true)
+            OpenFileDialog dialog = new OpenFileDialog
             {
-                BaseMetroDialog addPluginDialog = (BaseMetroDialog)this.Resources["AddPluginDialog"];
-                ((AddAssemblyModel)addPluginDialog.DataContext).DllPath = dialog.FileName;
-            }
-        }
+                Filter = "DLL Files (*.dll)|*.dll",
+                Multiselect = true,
+                Title = "Select Plugin DLLs"
+            };
 
-        private async void AddPluginButton_Click(object sender, RoutedEventArgs e)
-        {
-            BaseMetroDialog addPluginDialog = (BaseMetroDialog)this.Resources["AddPluginDialog"];
-            AddAssemblyModel dataModel = (AddAssemblyModel)addPluginDialog.DataContext;
-
-            if (string.IsNullOrEmpty(dataModel.DllPath))
-            {
-                await this.ShowMessageAsync("Error", "No plugin path specified.");
-                return;
-            }
-
-            if (dataModel.DllPath.ToLower().Contains("\\obj\\"))
-            {
-                await this.ShowMessageAsync("Error", $"Invalid plugin path specified: path should not include \\obj\\. Did you mean {dataModel.DllPath.Replace("\\obj\\", "\\bin\\")}?");
-                return;
-            }
-
-            //Should never happen but just in case some idiot deletes a plugin after selecting it..
-            if (!File.Exists(dataModel.DllPath))
+            if (dialog.ShowDialog() != true)
                 return;
 
-            FileVersionInfo fileInfo = FileVersionInfo.GetVersionInfo(dataModel.DllPath);
-
-            Config.Plugins.Add(Utils.HashFromFile(dataModel.DllPath), new PluginModel()
+            foreach (var dllPath in dialog.FileNames)
             {
-                Name = fileInfo.ProductName,
-                Version = fileInfo.FileVersion,
-                Path = dataModel.DllPath
-            });
+                if (!File.Exists(dllPath))
+                    continue;
 
-            await this.HideMetroDialogAsync(addPluginDialog);
+                if (dllPath.IndexOf("\\obj\\", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    await this.ShowMessageAsync("Error", $"Invalid plugin path: {dllPath}\nUse \\bin\\ instead.");
+                    continue;
+                }
+
+                var fileInfo = FileVersionInfo.GetVersionInfo(dllPath);
+
+                string key = Utils.HashFromFile(dllPath);
+                if (Config.Plugins.ContainsKey(key))
+                    continue;
+
+                Config.Plugins.Add(key, new PluginModel
+                {
+                    Name = fileInfo.ProductName,
+                    Version = fileInfo.FileVersion,
+                    Path = dllPath,
+                    IsEnabled = ActiveProfile?.EnabledPlugins.Contains(key) ?? false
+                });
+            }
+            RefreshPluginStatuses(this, EventArgs.Empty);
         }
 
         private void PluginEnabledCheckBox_Click(object sender, RoutedEventArgs e)
@@ -209,12 +246,7 @@ namespace AOSharp
                 foreach (PluginModel plugin in Config.Plugins.Values)
                     plugin.IsEnabled = false;
 
-                PluginsDataGrid.IsEnabled = false;
                 return;
-            }
-            else if(!PluginsDataGrid.IsEnabled)
-            {
-                PluginsDataGrid.IsEnabled = true;
             }
 
             foreach (KeyValuePair<string, PluginModel> plugin in Config.Plugins)
@@ -316,6 +348,102 @@ namespace AOSharp
             if (PropertyChanged != null)
             {
                 PropertyChanged(this, new PropertyChangedEventArgs(propertyName));
+            }
+        }
+        private async void SaveUserPluginProfileButton_Click(object sender, RoutedEventArgs e)
+        {
+            UserProfileComboBox.GetBindingExpression(ComboBox.TextProperty)?.UpdateSource();
+            try
+            {
+                SaveCurrentUserProfile();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to save plugin profile");
+                await this.ShowMessageAsync("Plugin profiles", "Could not save plugin profile: " + ex.Message);
+            }
+        }
+
+        private async void LoadUserPluginProfileButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                LoadSelectedUserProfile();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to load plugin profile");
+                await this.ShowMessageAsync("Plugin profiles", "Could not load plugin profile: " + ex.Message);
+            }
+        }
+
+        private void SaveCurrentUserProfile()
+        {
+            if (string.IsNullOrWhiteSpace(SelectedUserPluginProfile))
+                return;
+
+            SaveUserPluginProfile(SelectedUserPluginProfile);
+
+            if (!_userProfileNames.Contains(SelectedUserPluginProfile))
+                _userProfileNames.Add(SelectedUserPluginProfile);
+
+        }
+
+        private void LoadSelectedUserProfile()
+        {
+            if (string.IsNullOrWhiteSpace(SelectedUserPluginProfile))
+                return;
+
+            LoadUserPluginProfile(SelectedUserPluginProfile);
+        }
+        private async void DeleteUserPluginProfileButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(SelectedUserPluginProfile) || !_userPluginProfiles.ContainsKey(SelectedUserPluginProfile))
+                return;
+
+            try
+            {
+                var remaining = new Dictionary<string, Dictionary<string, List<string>>>(_userPluginProfiles);
+                remaining.Remove(SelectedUserPluginProfile);
+                File.WriteAllText(_userProfilesPath, Newtonsoft.Json.JsonConvert.SerializeObject(remaining, Newtonsoft.Json.Formatting.Indented));
+                _userPluginProfiles = remaining;
+                _userProfileNames.Remove(SelectedUserPluginProfile);
+                SelectedUserPluginProfile = _userProfileNames.FirstOrDefault();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to delete plugin profile");
+                await this.ShowMessageAsync("Plugin profiles", "Could not delete plugin profile: " + ex.Message);
+            }
+        }
+
+        private void RemoveAllPlugins_Click(object sender, RoutedEventArgs e)
+        {
+            // This stages the next injection; active loaders retain their snapshot.
+            Config.Plugins.Clear();
+        }
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            Properties.Settings.Default.WindowLocation = new Point(this.RestoreBounds.Left, this.RestoreBounds.Top);
+            Properties.Settings.Default.WindowSize = new Size(this.RestoreBounds.Width, this.RestoreBounds.Height);
+            Properties.Settings.Default.Save();
+            base.OnClosing(e);
+        }
+
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+
+            if (Properties.Settings.Default.WindowSize.Width > 0 && Properties.Settings.Default.WindowSize.Height > 0)
+            {
+                this.Width = Properties.Settings.Default.WindowSize.Width;
+                this.Height = Properties.Settings.Default.WindowSize.Height;
+            }
+
+            if (Properties.Settings.Default.WindowLocation.X >= 0 && Properties.Settings.Default.WindowLocation.Y >= 0)
+            {
+                this.Left = Properties.Settings.Default.WindowLocation.X;
+                this.Top = Properties.Settings.Default.WindowLocation.Y;
             }
         }
     }
