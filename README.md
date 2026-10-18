@@ -4,7 +4,7 @@ Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-k
 
 This tree uses the classic Windows/.NET Framework 4.8 WPF launcher and EasyHook. It is not the separate .NET8 launcher.
 
-Version **2.7.11** includes named plugin profiles (Save/Load/Del), multi-select DLL addition, individual and bulk injection/ejection, saved window geometry, and plugin initialization status with one clean retry. Plugin choices can be staged while the current set is running; loaded profiles take effect on the next injection.
+Version **2.7.12** includes named plugin profiles (Save/Load/Del), multi-select DLL addition (including drag and drop onto the window), individual and bulk injection/ejection, saved window geometry, and plugin initialization status with one clean retry. Plugin choices can be staged while the current set is running; loaded profiles take effect on the next injection.
 
 See [KAOSHARP.md](KAOSHARP.md) for source provenance, behavior and validation limits.
 

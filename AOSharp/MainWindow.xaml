@@ -6,8 +6,11 @@
         xmlns:local="clr-namespace:AOSharp"
         xmlns:Controls="http://metro.mahapps.com/winfx/xaml/controls"
         xmlns:Dialog="clr-namespace:MahApps.Metro.Controls.Dialogs;assembly=MahApps.Metro"
+        AllowDrop="True"
+        PreviewDragOver="PluginFiles_DragOver"
+        PreviewDrop="PluginFiles_Drop"
         mc:Ignorable="d"
-        Title="KAO# 2.7.11"
+        Title="KAO# 2.7.12"
         Width="1000"
         Height="450"
         MinWidth="1000"
@@ -80,7 +83,7 @@
                     <Button Margin="3" Padding="10,3" Click="InjectAllButton_Clicked">Inject All</Button>
                     <Button Margin="3" Padding="10,3" Click="EjectAllButton_Clicked">Eject All</Button>
                 </StackPanel>
-                <Button HorizontalAlignment="Right" Margin="3" Padding="10,3" Click="ShowAddPluginDialog">Add Plugin</Button>
+                <Button HorizontalAlignment="Right" Margin="3" Padding="10,3" Click="ShowAddPluginDialog" ToolTip="Select DLLs, or drag and drop them anywhere on this window">Add Plugin</Button>
             </DockPanel>
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,0,6,3">
                 <TextBlock VerticalAlignment="Center" Margin="0,0,6,0" Text="Plugin profile"/>

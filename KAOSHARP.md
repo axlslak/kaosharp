@@ -1,4 +1,4 @@
-# KAOSharp 2.7.11
+# KAOSharp 2.7.12
 
 Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-knows-best/aosharp), initially imported from commit `d55eb12b5a763e5ed65851e69c50343de6c6d73c`. Version2.7.11 integrates the net source changes from [Knows Modded AOSharp](https://gitlab.com/aosharp-plus/aosp.knows-aosharp-mods), master commit `5eb65c1053748dad82d16490aca3eaaec01432dc`, also present at [sdts-group/knows-aosharp-mods](https://gitlab.com/sdts-group/knows-aosharp-mods). All upstream authorship and notices remain intact.
 
@@ -44,3 +44,8 @@ Keep this fork's readiness gate, per-character initialization status, clean retr
 Keep Console5.0.1/File5.0.0 package declarations matching existing project references instead of importing the modded manifest's inconsistent sink downgrades. DiagnosticSource redirects now target the referenced assembly7.0.0.2; Serilog3.1.1 uses assembly identity2.0.0.0, so the core redirect targets that identity. Application/bootstrap assembly identities remain1.0.0.0; file/informational/application versions and window title advance together.
 
 Source comparison, conflict review, XML parsing and publication checks only. No builds, tests, injection, releases or automatic CI performed. Runtime confirmation remains pending.
+
+
+## 2.7.12 — drag and drop plugin DLLs
+
+Drop one or multiple DLLs anywhere on the launcher window to add them. The normal Add Plugin picker and drops share the same registration path: ignore non-DLLs and duplicate keys, reject obj paths, save added entries, and report per-file failures together while continuing the remaining files. Adding files stages configuration; injection remains explicit. Paths reference the original files, so keep them in their intended location. The Add Plugin tooltip advertises dropping. No new update-loop work. Source review/XML parsing only; no builds/tests/releases or live drag/drop validation.

@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading.Tasks;
 using System.IO;
 using System.Globalization;
 using System.Windows;
@@ -182,32 +183,76 @@ namespace AOSharp
             if (dialog.ShowDialog() != true)
                 return;
 
-            foreach (var dllPath in dialog.FileNames)
+            await AddPluginFilesAsync(dialog.FileNames);
+        }
+
+        private static bool IsDllPath(string path)
+        {
+            return string.Equals(Path.GetExtension(path), ".dll", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void PluginFiles_DragOver(object sender, DragEventArgs e)
+        {
+            e.Effects = DragDropEffects.None;
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
-                if (!File.Exists(dllPath))
-                    continue;
-
-                if (dllPath.IndexOf("\\obj\\", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    await this.ShowMessageAsync("Error", $"Invalid plugin path: {dllPath}\nUse \\bin\\ instead.");
-                    continue;
-                }
-
-                var fileInfo = FileVersionInfo.GetVersionInfo(dllPath);
-
-                string key = Utils.HashFromFile(dllPath);
-                if (Config.Plugins.ContainsKey(key))
-                    continue;
-
-                Config.Plugins.Add(key, new PluginModel
-                {
-                    Name = fileInfo.ProductName,
-                    Version = fileInfo.FileVersion,
-                    Path = dllPath,
-                    IsEnabled = ActiveProfile?.EnabledPlugins.Contains(key) ?? false
-                });
+                var paths = e.Data.GetData(DataFormats.FileDrop) as string[];
+                if (paths != null && paths.Any(IsDllPath))
+                    e.Effects = DragDropEffects.Copy;
             }
+            e.Handled = true;
+        }
+
+        private async void PluginFiles_Drop(object sender, DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+                return;
+
+            e.Handled = true;
+            var paths = e.Data.GetData(DataFormats.FileDrop) as string[];
+            if (paths != null)
+                await AddPluginFilesAsync(paths);
+        }
+
+        private async Task AddPluginFilesAsync(IEnumerable<string> paths)
+        {
+            var failures = new List<string>();
+            foreach (string dllPath in paths.Where(IsDllPath))
+            {
+                try
+                {
+                    if (!File.Exists(dllPath))
+                        continue;
+
+                    if (dllPath.IndexOf("\\obj\\", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        failures.Add($"{dllPath}: use the DLL from \\bin\\ instead of \\obj\\.");
+                        continue;
+                    }
+
+                    string key = Utils.HashFromFile(dllPath);
+                    if (Config.Plugins.ContainsKey(key))
+                        continue;
+
+                    var fileInfo = FileVersionInfo.GetVersionInfo(dllPath);
+                    Config.Plugins.Add(key, new PluginModel
+                    {
+                        Name = fileInfo.ProductName,
+                        Version = fileInfo.FileVersion,
+                        Path = dllPath,
+                        IsEnabled = ActiveProfile?.EnabledPlugins.Contains(key) ?? false
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to add plugin {Path}", dllPath);
+                    failures.Add(dllPath + ": " + ex.Message);
+                }
+            }
+
             RefreshPluginStatuses(this, EventArgs.Empty);
+            if (failures.Count > 0)
+                await this.ShowMessageAsync("Could not add some plugins", string.Join(Environment.NewLine, failures));
         }
 
         private void PluginEnabledCheckBox_Click(object sender, RoutedEventArgs e)
