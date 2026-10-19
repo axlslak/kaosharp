@@ -15,9 +15,9 @@ namespace AOSharp.Models
 
         private readonly DispatcherTimer _timer;
 
-        public ProfilesModel(Config config)
+        public ProfilesModel()
         {
-            Profiles = new ObservableCollection<Profile>(config.Profiles);
+            Profiles = new ObservableCollection<Profile>();
             RefreshProfiles(null, null);
 
             _timer = new DispatcherTimer();

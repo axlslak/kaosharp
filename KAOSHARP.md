@@ -1,4 +1,4 @@
-# KAOSharp 2.7.12
+# KAOSharp 2.7.13
 
 Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-knows-best/aosharp), initially imported from commit `d55eb12b5a763e5ed65851e69c50343de6c6d73c`. Version2.7.11 integrates the net source changes from [Knows Modded AOSharp](https://gitlab.com/aosharp-plus/aosp.knows-aosharp-mods), master commit `5eb65c1053748dad82d16490aca3eaaec01432dc`, also present at [sdts-group/knows-aosharp-mods](https://gitlab.com/sdts-group/knows-aosharp-mods). All upstream authorship and notices remain intact.
 
@@ -49,3 +49,17 @@ Source comparison, conflict review, XML parsing and publication checks only. No 
 ## 2.7.12 — drag and drop plugin DLLs
 
 Drop one or multiple DLLs anywhere on the launcher window to add them. The normal Add Plugin picker and drops share the same registration path: ignore non-DLLs and duplicate keys, reject obj paths, save added entries, and report per-file failures together while continuing the remaining files. Adding files stages configuration; injection remains explicit. Paths reference the original files, so keep them in their intended location. The Add Plugin tooltip advertises dropping. No new update-loop work. Source review/XML parsing only; no builds/tests/releases or live drag/drop validation.
+
+## 2.7.13 — shared plugin library and activity tabs
+
+The launcher opens on Plugin list, showing the global DLL catalogue with activity membership columns followed by version/source. Add Plugin, multiselect, window-wide DLL drops, sorting and multiple-row removal remain available. The library has no character, per-character enable, runtime status or injection controls.
+
+The + at the end of the tab strip selects Plugin list and opens an empty activity-column header for typing. Enter commits a nonempty unique activity name; Escape cancels. Naming creates its activity tab while leaving setup visible so membership can be chosen. No default activity or plugin selection is supplied. Save is available; completed names, membership and character selections are also saved as they change.
+
+Each activity shows only its plugin pool, with independent selections per character. Availability in a pool does not enable a plugin for all characters. A single shared client-discovery list and runtime Profile per character track injection ownership. Tab browsing changes the view only. A character already injected under another activity identifies that activity and cannot be injected a second time; eject it from its running activity first. Inject All skips active injections and empty selections. Eject All only targets characters running the current activity.
+
+Selections continue to stage the next injection while the current snapshot runs. Display rows keep status separate from the catalogue, and failed/disconnected statuses remain associated with the activity that attempted injection. Existing pipe identity guards, status colors, bootstrap readiness and clean retry are retained. No changes to bootstrap lifecycle, plugin protocol, Core or plugin assemblies.
+
+This is a fresh setup format in launcher.json beside the launcher, containing the library, activity pools and per-character selections. The earlier config.json and userPluginProfiles.json are neither loaded nor rewritten. It is not a profile migration. Activity rename/delete/reordering, reinject and in-game switching are outside this step.
+
+Exact window/application/executable/bootstrap file and informational versions advance to2.7.13; assembly identities and dependency versions remain unchanged. Source review, XML parsing and publication checks only. No builds, tests, injection, releases or automatic CI; compilation, appearance and in-game behavior await user verification.

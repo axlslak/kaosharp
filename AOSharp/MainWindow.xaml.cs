@@ -1,73 +1,73 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using System.IO;
-using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.ComponentModel;
-using Microsoft.Win32;
-using MahApps.Metro.Controls;
-using MahApps.Metro.Controls.Dialogs;
+using System.Windows.Input;
+using AOSharp.Bootstrap.IPC;
 using AOSharp.Data;
 using AOSharp.Models;
+using MahApps.Metro.Controls;
+using MahApps.Metro.Controls.Dialogs;
+using Microsoft.Win32;
 using Serilog;
-using AOSharp.Bootstrap.IPC;
+using Activity = AOSharp.Models.Activity;
 
 namespace AOSharp
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
     public partial class MainWindow : MetroWindow, INotifyPropertyChanged
     {
-        public Config Config;
-
+        public Config Config { get; }
+        private readonly ProfilesModel _profilesModel;
         private Profile _activeProfile;
-        private Dictionary<string, Dictionary<string, List<string>>> _userPluginProfiles = new Dictionary<string, Dictionary<string, List<string>>>();
-        private readonly ObservableCollection<string> _userProfileNames = new ObservableCollection<string>();
-        private string _userProfilesPath => Path.Combine(Directories.CurrentDirectory, "userPluginProfiles.json");
-        private string _selectedUserPluginProfile;
+        private Activity _activeActivity;
+        private Activity _pendingActivity;
+        private DataGridTemplateColumn _pendingColumn;
+        private TextBox _activityNameEditor;
+        private bool _ready;
+        private bool _batchingLibraryChanges;
+        private string _setupMessage = "Add your plugin DLLs, then use + to create an activity.";
 
-        public ObservableCollection<string> UserProfileNames => _userProfileNames;
+        public ObservableCollection<KeyValuePair<string, PluginModel>> LibraryPlugins { get; } =
+            new ObservableCollection<KeyValuePair<string, PluginModel>>();
+        public ObservableCollection<ActivityPluginModel> ActivityPlugins { get; } =
+            new ObservableCollection<ActivityPluginModel>();
+        public ObservableCollection<Profile> Profiles => _profilesModel.Profiles;
 
-        public string SelectedUserPluginProfile
+        public string SetupMessage
         {
-            get => _selectedUserPluginProfile;
-            set
-            {
-                _selectedUserPluginProfile = value;
-                OnPropertyChanged(nameof(SelectedUserPluginProfile));
-            }
+            get => _setupMessage;
+            private set { _setupMessage = value; OnPropertyChanged(nameof(SetupMessage)); }
         }
 
-        public Profile ActiveProfile
-        {
-            get { return _activeProfile; }
-            set
-            {
-                if (_activeProfile != null) _activeProfile.PluginStatusesChanged -= RefreshPluginStatuses;
-                _activeProfile = value;
-                if (_activeProfile != null) _activeProfile.PluginStatusesChanged += RefreshPluginStatuses;
-                RefreshPluginStatuses(this, EventArgs.Empty);
-                OnPropertyChanged("ActiveProfile");
-            }
-        }
+        public bool HasProfileSelected => _activeActivity != null && _activeProfile?.IsActive == true;
+        public bool CanInject => HasProfileSelected && !_activeProfile.IsInjected;
+        public bool CanEject => HasProfileSelected && _activeProfile.IsInjected &&
+                                _activeProfile.LiveActivityId == _activeActivity.Id;
+        public bool ActivityHasNoPlugins => ActivityPlugins.Count == 0;
 
-        private bool _hasProfileSelected;
-
-        public bool HasProfileSelected
+        public string InjectionHint
         {
-            get { return _hasProfileSelected; }
-            set
+            get
             {
-                _hasProfileSelected = value;
-                OnPropertyChanged("HasProfileSelected");
+                if (!HasProfileSelected)
+                    return "Choose a running character, then select its plugins for this activity.";
+                if (_activeProfile.IsInjected)
+                {
+                    if (_activeProfile.LiveActivityId != _activeActivity.Id)
+                        return _activeProfile.Name + " is running " + _activeProfile.LiveActivityName +
+                               ". Open that tab to eject before switching activities.";
+                    return "Running this activity. Selection changes apply to the next injection.";
+                }
+                return "Choose the plugins for " + _activeProfile.Name + ", then Inject.";
             }
         }
 
@@ -78,112 +78,346 @@ namespace AOSharp
                 .CreateLogger();
 
             Config = Config.Load(Directories.ConfigFilePath);
-
-            Config.Plugins.CollectionChanged += (object sender, NotifyCollectionChangedEventArgs e) =>
-            {
-                Config.Save();
-            };
-
-            this.DataContext = this;
-
+            _profilesModel = new ProfilesModel();
+            DataContext = this;
             InitializeComponent();
 
+            foreach (Activity activity in Config.Activities)
+            {
+                AddActivityTab(activity);
+                LibraryGrid.Columns.Insert(LibraryGrid.Columns.Count - 2, CreateMembershipColumn(activity));
+            }
+
+            foreach (Profile profile in Profiles)
+                profile.PropertyChanged += Profile_PropertyChanged;
+            Profiles.CollectionChanged += Profiles_CollectionChanged;
+            Config.Plugins.CollectionChanged += Plugins_CollectionChanged;
+            _ready = true;
+            WorkspaceTabs.SelectedItem = LibraryTab;
+            RefreshLibraryPlugins();
+            SelectActivity(null);
+        }
+
+        private void WorkspaceTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_ready || !ReferenceEquals(e.Source, WorkspaceTabs))
+                return;
+
+            if (WorkspaceTabs.SelectedItem == NewActivityTab)
+            {
+                WorkspaceTabs.SelectedItem = LibraryTab;
+                BeginActivity();
+                return;
+            }
+
+            SelectActivity((WorkspaceTabs.SelectedItem as TabItem)?.Tag as Activity);
+        }
+
+        private void NewActivity_Click(object sender, RoutedEventArgs e)
+        {
+            WorkspaceTabs.SelectedItem = LibraryTab;
+            BeginActivity();
+        }
+
+        private void SelectActivity(Activity activity)
+        {
+            _activeActivity = activity;
+            LibraryPanel.Visibility = activity == null ? Visibility.Visible : Visibility.Collapsed;
+            ActivityPanel.Visibility = activity == null ? Visibility.Collapsed : Visibility.Visible;
+            RefreshActivityPlugins();
+        }
+
+        private void AddActivityTab(Activity activity)
+        {
+            WorkspaceTabs.Items.Insert(WorkspaceTabs.Items.Count - 1,
+                new TabItem { Header = activity.Name, Tag = activity, Padding = new Thickness(14, 5, 14, 5) });
+        }
+
+        private void BeginActivity()
+        {
+            if (_pendingActivity != null)
+            {
+                FocusActivityName();
+                return;
+            }
+
+            _pendingActivity = new Activity();
+            _activityNameEditor = new TextBox
+            {
+                MinWidth = 130,
+                ToolTip = "Activity name; press Enter to create, or Esc to cancel",
+                Padding = new Thickness(4, 2, 4, 2)
+            };
+            _activityNameEditor.KeyDown += ActivityName_KeyDown;
+            _activityNameEditor.LostKeyboardFocus += ActivityName_LostKeyboardFocus;
+            _activityNameEditor.Loaded += (sender, args) => FocusActivityName();
+            _pendingColumn = CreateMembershipColumn(_pendingActivity, false);
+            _pendingColumn.Header = _activityNameEditor;
+            LibraryGrid.Columns.Insert(LibraryGrid.Columns.Count - 2, _pendingColumn);
+            SetupMessage = "Name the new column and press Enter, then tick the plugins for that activity.";
+            FocusActivityName();
+        }
+
+        private void FocusActivityName()
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (_activityNameEditor == null) return;
+                _activityNameEditor.BringIntoView();
+                _activityNameEditor.Focus();
+            }));
+        }
+
+        private bool CommitPendingActivity()
+        {
+            if (_pendingActivity == null)
+                return true;
+
+            string name = _activityNameEditor.Text.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                SetupMessage = "Enter an activity name in the new column, or press Esc to cancel.";
+                return false;
+            }
+
+            if (string.Equals(name, "Plugin list", StringComparison.OrdinalIgnoreCase) || name == "+")
+            {
+                SetupMessage = "Choose an activity name other than Plugin list or +.";
+                return false;
+            }
+
+            if (Config.Activities.Any(activity => string.Equals(activity.Name, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                SetupMessage = "An activity named " + name + " already exists. Choose another name.";
+                return false;
+            }
+
+            Activity activityToAdd = _pendingActivity;
+            DataGridTemplateColumn column = _pendingColumn;
+            // Clear pending state before replacing the focused header (which raises LostKeyboardFocus).
+            _pendingActivity = null;
+            _pendingColumn = null;
+            _activityNameEditor = null;
+            activityToAdd.Name = name;
+            Config.Activities.Add(activityToAdd);
+            column.Header = name;
+            column.CellTemplate = CreateMembershipTemplate(activityToAdd, true);
+            AddActivityTab(activityToAdd);
+            SetupMessage = "Tick the plugins available in " + name + ", save, then open its tab.";
+            return true;
+        }
+
+        private async void ActivityName_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                DataGridTemplateColumn column = _pendingColumn;
+                _pendingActivity = null;
+                _pendingColumn = null;
+                _activityNameEditor = null;
+                LibraryGrid.Columns.Remove(column);
+                SetupMessage = "Activity creation cancelled. Use + to add one.";
+                LibraryGrid.Focus();
+            }
+            else if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                if (CommitPendingActivity())
+                {
+                    LibraryGrid.Focus();
+                    await SaveConfigurationAsync();
+                }
+            }
+        }
+
+        private async void ActivityName_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+        {
+            if (_pendingActivity != null && !string.IsNullOrWhiteSpace(_activityNameEditor.Text) &&
+                CommitPendingActivity())
+                await SaveConfigurationAsync();
+        }
+
+        private DataGridTemplateColumn CreateMembershipColumn(Activity activity, bool enabled = true)
+        {
+            return new DataGridTemplateColumn
+            {
+                Header = activity.Name,
+                MinWidth = 100,
+                CanUserSort = false,
+                CellTemplate = CreateMembershipTemplate(activity, enabled)
+            };
+        }
+
+        private DataTemplate CreateMembershipTemplate(Activity activity, bool enabled)
+        {
+            var box = new FrameworkElementFactory(typeof(CheckBox));
+            box.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+            box.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+            box.SetValue(FrameworkElement.TagProperty, activity);
+            box.SetValue(UIElement.IsEnabledProperty, enabled);
+            box.SetBinding(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
+                new Binding("Key") { Mode = BindingMode.OneWay, Converter = new ActivityMembershipConverter(activity) });
+            box.AddHandler(System.Windows.Controls.Primitives.ButtonBase.ClickEvent,
+                new RoutedEventHandler(ActivityMembership_Click));
+            return new DataTemplate { VisualTree = box };
+        }
+
+        private async void ActivityMembership_Click(object sender, RoutedEventArgs e)
+        {
+            var box = (CheckBox)sender;
+            var activity = (Activity)box.Tag;
+            var plugin = (KeyValuePair<string, PluginModel>)box.DataContext;
+            if (box.IsChecked == true)
+            {
+                if (!activity.PluginKeys.Contains(plugin.Key))
+                    activity.PluginKeys.Add(plugin.Key);
+            }
+            else
+                activity.RemovePlugin(plugin.Key);
+
+            await SaveConfigurationAsync();
+        }
+
+        private async void SaveSetup_Click(object sender, RoutedEventArgs e)
+        {
+            if (!CommitPendingActivity())
+            {
+                WorkspaceTabs.SelectedItem = LibraryTab;
+                FocusActivityName();
+                return;
+            }
+            if (await SaveConfigurationAsync())
+                SetupMessage = "Setup saved. Open an activity tab to choose plugins for each character.";
+        }
+
+        private async Task<bool> SaveConfigurationAsync()
+        {
             try
             {
-                if (File.Exists(_userProfilesPath))
-                    _userPluginProfiles = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string, List<string>>>>(File.ReadAllText(_userProfilesPath))
-                        ?? new Dictionary<string, Dictionary<string, List<string>>>();
+                Config.Save();
+                return true;
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Failed to read plugin profiles from {Path}", _userProfilesPath);
-                Loaded += async (sender, args) => await this.ShowMessageAsync("Plugin profiles", "Could not read saved plugin profiles: " + ex.Message);
+                Log.Error(ex, "Failed to save launcher setup");
+                await this.ShowMessageAsync("Could not save setup", ex.Message);
+                return false;
             }
-            foreach (string name in _userPluginProfiles.Keys)
-                _userProfileNames.Add(name);
-            SelectedUserPluginProfile = _userProfileNames.FirstOrDefault();
+        }
 
-            PluginsDataGrid.DataContext = Config;
-            ProfileListBox.DataContext = new ProfilesModel(Config);
+        private void RefreshLibraryPlugins()
+        {
+            LibraryPlugins.Clear();
+            foreach (var plugin in Config.Plugins.OrderBy(pair => pair.Value.Name, StringComparer.CurrentCultureIgnoreCase))
+                LibraryPlugins.Add(plugin);
+        }
 
-            // Sort plugin names alphabetically.
-            ICollectionView view = CollectionViewSource.GetDefaultView(PluginsDataGrid.ItemsSource);
-            if (view != null)
+        private void RefreshActivityPlugins()
+        {
+            ActivityPlugins.Clear();
+            if (_activeActivity != null)
             {
-                view.SortDescriptions.Clear();
-                view.SortDescriptions.Add(new SortDescription("Value.Name", ListSortDirection.Ascending));
-                view.Refresh();
+                foreach (var plugin in Config.Plugins
+                    .Where(pair => _activeActivity.PluginKeys.Contains(pair.Key))
+                    .OrderBy(pair => pair.Value.Name, StringComparer.CurrentCultureIgnoreCase))
+                {
+                    ActivityPlugins.Add(new ActivityPluginModel(plugin.Key, plugin.Value)
+                    {
+                        IsEnabled = _activeProfile != null && _activeActivity.IsEnabled(_activeProfile.Name, plugin.Key)
+                    });
+                }
             }
+            RefreshPluginStatuses(this, EventArgs.Empty);
+            OnPropertyChanged(nameof(ActivityHasNoPlugins));
         }
 
         private void RefreshPluginStatuses(object sender, EventArgs e)
         {
-            foreach (PluginModel plugin in Config.Plugins.Values)
+            foreach (ActivityPluginModel row in ActivityPlugins)
             {
                 PluginStatusMessage status = null;
-                ActiveProfile?.PluginStatuses.TryGetValue(plugin.Path, out status);
-                plugin.LoadStatus = status == null ? "Not injected" :
+                if (_activeProfile != null && _activeProfile.StatusActivityId == _activeActivity?.Id)
+                    _activeProfile.PluginStatuses.TryGetValue(row.Plugin.Path, out status);
+                row.LoadStatus = status == null ? "Not injected" :
                     status.State == PluginLoadState.Initialized ? "Initialized" :
                     status.State == PluginLoadState.Failed ? "Failed" : "Loading";
-                plugin.LoadDetail = status?.Detail ?? "";
+                row.LoadDetail = status?.Detail ?? "";
             }
+            RefreshRuntimeControls();
         }
 
-        private void SaveUserPluginProfile(string profileName)
+        private void RefreshRuntimeControls()
         {
-            var data = new Dictionary<string, List<string>>();
-            foreach (var profile in Config.Profiles)
-            {
-                data[profile.Name] = new List<string>(profile.EnabledPlugins);
-            }
-
-            _userPluginProfiles[profileName] = data;
-
-            File.WriteAllText(_userProfilesPath, Newtonsoft.Json.JsonConvert.SerializeObject(_userPluginProfiles, Newtonsoft.Json.Formatting.Indented));
+            OnPropertyChanged(nameof(HasProfileSelected));
+            OnPropertyChanged(nameof(CanInject));
+            OnPropertyChanged(nameof(CanEject));
+            OnPropertyChanged(nameof(InjectionHint));
         }
 
-        private void LoadUserPluginProfile(string profileName)
+        private void Profiles_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
-            if (!_userPluginProfiles.ContainsKey(profileName))
+            if (e.NewItems != null)
+                foreach (Profile profile in e.NewItems)
+                    profile.PropertyChanged += Profile_PropertyChanged;
+            if (e.OldItems != null)
+                foreach (Profile profile in e.OldItems)
+                    profile.PropertyChanged -= Profile_PropertyChanged;
+        }
+
+        private void Profile_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (ReferenceEquals(sender, _activeProfile))
+                RefreshRuntimeControls();
+        }
+
+        private void ProfileListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_activeProfile != null)
+                _activeProfile.PluginStatusesChanged -= RefreshPluginStatuses;
+            _activeProfile = (Profile)ProfileListBox.SelectedItem;
+            if (_activeProfile != null)
+                _activeProfile.PluginStatusesChanged += RefreshPluginStatuses;
+            RefreshActivityPlugins();
+        }
+
+        private async void PluginEnabledCheckBox_Click(object sender, RoutedEventArgs e)
+        {
+            if (!HasProfileSelected)
                 return;
+            var box = (CheckBox)sender;
+            var row = (ActivityPluginModel)box.DataContext;
+            // Staging is independent of the loader's live snapshot and activity ownership.
+            _activeActivity.SetEnabled(_activeProfile.Name, row.Key, box.IsChecked == true);
+            await SaveConfigurationAsync();
+        }
 
-            var selectedData = _userPluginProfiles[profileName];
-            foreach (var profile in Config.Profiles)
-            {
-                if (selectedData.ContainsKey(profile.Name))
-                {
-                    profile.EnabledPlugins = new ObservableCollection<string>(selectedData[profile.Name]);
-                }
-                else
-                {
-                    profile.EnabledPlugins.Clear();
-                }
-            }
+        private async void Plugins_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (_batchingLibraryChanges) return;
+            ReconcileLibraryRemoval();
+            RefreshLibraryPlugins();
+            RefreshActivityPlugins();
+            await SaveConfigurationAsync();
+        }
 
-            if (ActiveProfile != null)
-            {
-                foreach (var plugin in Config.Plugins)
-                {
-                    plugin.Value.IsEnabled = ActiveProfile.EnabledPlugins.Contains(plugin.Key);
-                }
-            }
-
-            Config.Save();
+        private void ReconcileLibraryRemoval()
+        {
+            foreach (Activity activity in Config.Activities)
+                foreach (string key in activity.PluginKeys.Where(key => !Config.Plugins.ContainsKey(key)).ToArray())
+                    activity.RemovePlugin(key);
         }
 
         private async void ShowAddPluginDialog(object sender, RoutedEventArgs e)
         {
-            OpenFileDialog dialog = new OpenFileDialog
+            var dialog = new OpenFileDialog
             {
                 Filter = "DLL Files (*.dll)|*.dll",
                 Multiselect = true,
                 Title = "Select Plugin DLLs"
             };
-
-            if (dialog.ShowDialog() != true)
-                return;
-
-            await AddPluginFilesAsync(dialog.FileNames);
+            if (dialog.ShowDialog() == true)
+                await AddPluginFilesAsync(dialog.FileNames);
         }
 
         private static bool IsDllPath(string path)
@@ -205,9 +439,7 @@ namespace AOSharp
 
         private async void PluginFiles_Drop(object sender, DragEventArgs e)
         {
-            if (!e.Data.GetDataPresent(DataFormats.FileDrop))
-                return;
-
+            if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
             e.Handled = true;
             var paths = e.Data.GetData(DataFormats.FileDrop) as string[];
             if (paths != null)
@@ -216,261 +448,169 @@ namespace AOSharp
 
         private async Task AddPluginFilesAsync(IEnumerable<string> paths)
         {
+            WorkspaceTabs.SelectedItem = LibraryTab;
             var failures = new List<string>();
-            foreach (string dllPath in paths.Where(IsDllPath))
+            _batchingLibraryChanges = true;
+            try
             {
-                try
+                foreach (string dllPath in paths.Where(IsDllPath))
                 {
-                    if (!File.Exists(dllPath))
-                        continue;
-
-                    if (dllPath.IndexOf("\\obj\\", StringComparison.OrdinalIgnoreCase) >= 0)
+                    try
                     {
-                        failures.Add($"{dllPath}: use the DLL from \\bin\\ instead of \\obj\\.");
-                        continue;
+                        if (!File.Exists(dllPath)) continue;
+                        if (dllPath.IndexOf("\\obj\\", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            failures.Add(dllPath + ": use the DLL from \\bin\\ instead of \\obj\\.");
+                            continue;
+                        }
+
+                        string key = Utils.HashFromFile(dllPath);
+                        if (Config.Plugins.ContainsKey(key)) continue;
+                        var fileInfo = FileVersionInfo.GetVersionInfo(dllPath);
+                        Config.Plugins.Add(key, new PluginModel
+                        {
+                            Name = string.IsNullOrWhiteSpace(fileInfo.ProductName)
+                                ? Path.GetFileNameWithoutExtension(dllPath) : fileInfo.ProductName,
+                            Version = fileInfo.FileVersion,
+                            Path = dllPath
+                        });
                     }
-
-                    string key = Utils.HashFromFile(dllPath);
-                    if (Config.Plugins.ContainsKey(key))
-                        continue;
-
-                    var fileInfo = FileVersionInfo.GetVersionInfo(dllPath);
-                    Config.Plugins.Add(key, new PluginModel
+                    catch (Exception ex)
                     {
-                        Name = fileInfo.ProductName,
-                        Version = fileInfo.FileVersion,
-                        Path = dllPath,
-                        IsEnabled = ActiveProfile?.EnabledPlugins.Contains(key) ?? false
-                    });
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Failed to add plugin {Path}", dllPath);
-                    failures.Add(dllPath + ": " + ex.Message);
+                        Log.Error(ex, "Failed to add plugin {Path}", dllPath);
+                        failures.Add(dllPath + ": " + ex.Message);
+                    }
                 }
             }
-
-            RefreshPluginStatuses(this, EventArgs.Empty);
+            finally
+            {
+                _batchingLibraryChanges = false;
+                RefreshLibraryPlugins();
+                RefreshActivityPlugins();
+            }
+            await SaveConfigurationAsync();
             if (failures.Count > 0)
                 await this.ShowMessageAsync("Could not add some plugins", string.Join(Environment.NewLine, failures));
         }
 
-        private void PluginEnabledCheckBox_Click(object sender, RoutedEventArgs e)
+        private void LibraryGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
-            Profile selectedProfile = (Profile)ProfileListBox.SelectedItem;
-
-            if (selectedProfile == null)
-                return;
-
-            KeyValuePair<string, PluginModel> plugin = (KeyValuePair<string, PluginModel>)((CheckBox)sender).DataContext;
-
-            // These choices are for the next injection; the running loader owns its snapshot.
-            if (plugin.Value.IsEnabled)
-            {
-                if (!selectedProfile.EnabledPlugins.Contains(plugin.Key))
-                    selectedProfile.EnabledPlugins.Add(plugin.Key);
-            }
-            else
-                selectedProfile.EnabledPlugins.Remove(plugin.Key);
-
-            if (!Config.Profiles.Contains(selectedProfile))
-                Config.Profiles.Add(selectedProfile);
-
-            Config.Save();
+            var target = e.OriginalSource as DependencyObject;
+            var row = target == null ? null : ItemsControl.ContainerFromElement(LibraryGrid, target) as DataGridRow;
+            if (row != null && !row.IsSelected)
+                LibraryGrid.SelectedItem = row.Item;
         }
 
-        private void ProfileListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void RemoveSelectedPlugins_Click(object sender, RoutedEventArgs e)
         {
-            Profile profile = (Profile)ProfileListBox.SelectedItem;
-
-            HasProfileSelected = profile != null;
-            ActiveProfile = profile;
-
-            if(profile == null)
-            {
-                foreach (PluginModel plugin in Config.Plugins.Values)
-                    plugin.IsEnabled = false;
-
-                return;
-            }
-
-            foreach (KeyValuePair<string, PluginModel> plugin in Config.Plugins)
-                plugin.Value.IsEnabled = profile.EnabledPlugins.Contains(plugin.Key);
-        }
-
-        private async void InjectButton_Clicked(object sender, RoutedEventArgs e)
-        {
-            Profile profile = (Profile)ProfileListBox.SelectedItem;
-
-            if (profile == null)
-                return;
-
-            IEnumerable<string> plugins = Config.Plugins.Where(x => profile.EnabledPlugins.Contains(x.Key)).Select(x => x.Value.Path);
-
-            if(!plugins.Any())
-            {
-                await this.ShowMessageAsync("Error", "No plugins selected.");
-                return;
-            }
-
-            if (!profile.Inject(plugins))
-            {
-                await this.ShowMessageAsync("Error", "Failed to inject.");
-            }
-        }
-
-        private void EjectButton_Clicked(object sender, RoutedEventArgs e)
-        {
-            Profile profile = (Profile)ProfileListBox.SelectedItem;
-
-            if (profile == null)
-                return;
-
-            profile.Eject();
-
-            PluginsDataGrid.IsEnabled = true;
-        }
-
-        private async void InjectAllButton_Clicked(object sender, RoutedEventArgs e)
-        {
-            var profiles = ((ProfilesModel)ProfileListBox.DataContext).Profiles
-                .Where(profile => profile.IsActive && !profile.IsInjected).ToArray();
-            var failures = new List<string>();
-
-            foreach (Profile profile in profiles)
-            {
-                string[] plugins = Config.Plugins
-                    .Where(plugin => profile.EnabledPlugins.Contains(plugin.Key))
-                    .Select(plugin => plugin.Value.Path).ToArray();
-
-                if (plugins.Length == 0)
-                    continue;
-
-                if (!profile.Inject(plugins))
-                    failures.Add(profile.Name);
-            }
-
-            if (failures.Count > 0)
-                await this.ShowMessageAsync("Injection failed",
-                    "Could not inject: " + string.Join(", ", failures));
-        }
-
-        private async void EjectAllButton_Clicked(object sender, RoutedEventArgs e)
-        {
-            var profiles = ((ProfilesModel)ProfileListBox.DataContext).Profiles
-                .Where(profile => profile.IsActive && profile.IsInjected).ToArray();
-            var failures = new List<string>();
-
-            foreach (Profile profile in profiles)
-            {
-                try
-                {
-                    profile.Eject();
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Failed to eject profile {Profile}", profile.Name);
-                    failures.Add(profile.Name);
-                }
-            }
-
-            if (failures.Count > 0)
-                await this.ShowMessageAsync("Ejection failed",
-                    "Could not eject: " + string.Join(", ", failures));
-        }
-
-        private void TweaksButton_Click(object sender, RoutedEventArgs e)
-        {
-            var tweaksWindow = new TweaksWindow();
-            tweaksWindow.Owner = this;
-            tweaksWindow.ShowDialog();
-        }
-
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        private void OnPropertyChanged(string propertyName)
-        {
-            if (PropertyChanged != null)
-            {
-                PropertyChanged(this, new PropertyChangedEventArgs(propertyName));
-            }
-        }
-        private async void SaveUserPluginProfileButton_Click(object sender, RoutedEventArgs e)
-        {
-            UserProfileComboBox.GetBindingExpression(ComboBox.TextProperty)?.UpdateSource();
+            var selected = LibraryGrid.SelectedItems.Cast<KeyValuePair<string, PluginModel>>().ToArray();
+            // Batch notifications/saving; removing entries never changes a running loader.
+            _batchingLibraryChanges = true;
             try
             {
-                SaveCurrentUserProfile();
+                foreach (var plugin in selected)
+                    Config.Plugins.Remove(plugin.Key, plugin.Value);
             }
-            catch (Exception ex)
+            finally
             {
-                Log.Error(ex, "Failed to save plugin profile");
-                await this.ShowMessageAsync("Plugin profiles", "Could not save plugin profile: " + ex.Message);
+                _batchingLibraryChanges = false;
             }
+            FinishLibraryRemoval();
         }
 
-        private async void LoadUserPluginProfileButton_Click(object sender, RoutedEventArgs e)
+        private async void FinishLibraryRemoval()
         {
-            try
-            {
-                LoadSelectedUserProfile();
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Failed to load plugin profile");
-                await this.ShowMessageAsync("Plugin profiles", "Could not load plugin profile: " + ex.Message);
-            }
-        }
-
-        private void SaveCurrentUserProfile()
-        {
-            if (string.IsNullOrWhiteSpace(SelectedUserPluginProfile))
-                return;
-
-            SaveUserPluginProfile(SelectedUserPluginProfile);
-
-            if (!_userProfileNames.Contains(SelectedUserPluginProfile))
-                _userProfileNames.Add(SelectedUserPluginProfile);
-
-        }
-
-        private void LoadSelectedUserProfile()
-        {
-            if (string.IsNullOrWhiteSpace(SelectedUserPluginProfile))
-                return;
-
-            LoadUserPluginProfile(SelectedUserPluginProfile);
-        }
-        private async void DeleteUserPluginProfileButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (string.IsNullOrWhiteSpace(SelectedUserPluginProfile) || !_userPluginProfiles.ContainsKey(SelectedUserPluginProfile))
-                return;
-
-            try
-            {
-                var remaining = new Dictionary<string, Dictionary<string, List<string>>>(_userPluginProfiles);
-                remaining.Remove(SelectedUserPluginProfile);
-                File.WriteAllText(_userProfilesPath, Newtonsoft.Json.JsonConvert.SerializeObject(remaining, Newtonsoft.Json.Formatting.Indented));
-                _userPluginProfiles = remaining;
-                _userProfileNames.Remove(SelectedUserPluginProfile);
-                SelectedUserPluginProfile = _userProfileNames.FirstOrDefault();
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Failed to delete plugin profile");
-                await this.ShowMessageAsync("Plugin profiles", "Could not delete plugin profile: " + ex.Message);
-            }
+            ReconcileLibraryRemoval();
+            RefreshLibraryPlugins();
+            RefreshActivityPlugins();
+            await SaveConfigurationAsync();
         }
 
         private void RemoveAllPlugins_Click(object sender, RoutedEventArgs e)
         {
-            // This stages the next injection; active loaders retain their snapshot.
             Config.Plugins.Clear();
         }
+
+        private string[] SelectedPaths(Activity activity, Profile profile)
+        {
+            return Config.Plugins.Where(plugin => activity.PluginKeys.Contains(plugin.Key) &&
+                    activity.IsEnabled(profile.Name, plugin.Key))
+                .Select(plugin => plugin.Value.Path).ToArray();
+        }
+
+        private async void InjectButton_Clicked(object sender, RoutedEventArgs e)
+        {
+            if (!CanInject) return;
+            string[] plugins = SelectedPaths(_activeActivity, _activeProfile);
+            if (plugins.Length == 0)
+            {
+                await this.ShowMessageAsync("No plugins selected", "Choose the plugins for this character first.");
+                return;
+            }
+            if (!_activeProfile.Inject(plugins, _activeActivity.Id, _activeActivity.Name))
+                await this.ShowMessageAsync("Injection failed", "Could not inject " + _activeProfile.Name + ".");
+        }
+
+        private async void EjectButton_Clicked(object sender, RoutedEventArgs e)
+        {
+            if (!CanEject) return;
+            try
+            {
+                _activeProfile.Eject(_activeActivity.Id);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to eject character {Name}", _activeProfile.Name);
+                await this.ShowMessageAsync("Ejection failed", ex.Message);
+            }
+        }
+
+        private async void InjectAllButton_Clicked(object sender, RoutedEventArgs e)
+        {
+            if (_activeActivity == null) return;
+            Activity activity = _activeActivity;
+            var profiles = Profiles.Where(profile => profile.IsActive && !profile.IsInjected).ToArray();
+            var failures = new List<string>();
+            foreach (Profile profile in profiles)
+            {
+                string[] plugins = SelectedPaths(activity, profile);
+                if (plugins.Length == 0) continue;
+                if (!profile.Inject(plugins, activity.Id, activity.Name))
+                    failures.Add(profile.Name);
+            }
+            if (failures.Count > 0)
+                await this.ShowMessageAsync("Injection failed", "Could not inject: " + string.Join(", ", failures));
+        }
+
+        private async void EjectAllButton_Clicked(object sender, RoutedEventArgs e)
+        {
+            if (_activeActivity == null) return;
+            string activityId = _activeActivity.Id;
+            var profiles = Profiles.Where(profile => profile.IsActive && profile.IsInjected &&
+                profile.LiveActivityId == activityId).ToArray();
+            var failures = new List<string>();
+            foreach (Profile profile in profiles)
+            {
+                try { profile.Eject(activityId); }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to eject character {Name}", profile.Name);
+                    failures.Add(profile.Name);
+                }
+            }
+            if (failures.Count > 0)
+                await this.ShowMessageAsync("Ejection failed", "Could not eject: " + string.Join(", ", failures));
+        }
+
+        private void TweaksButton_Click(object sender, RoutedEventArgs e)
+        {
+            new TweaksWindow { Owner = this }.ShowDialog();
+        }
+
         protected override void OnClosing(CancelEventArgs e)
         {
-            Properties.Settings.Default.WindowLocation = new Point(this.RestoreBounds.Left, this.RestoreBounds.Top);
-            Properties.Settings.Default.WindowSize = new Size(this.RestoreBounds.Width, this.RestoreBounds.Height);
+            Properties.Settings.Default.WindowLocation = new Point(RestoreBounds.Left, RestoreBounds.Top);
+            Properties.Settings.Default.WindowSize = new Size(RestoreBounds.Width, RestoreBounds.Height);
             Properties.Settings.Default.Save();
             base.OnClosing(e);
         }
@@ -478,17 +618,35 @@ namespace AOSharp
         protected override void OnSourceInitialized(EventArgs e)
         {
             base.OnSourceInitialized(e);
-
             if (Properties.Settings.Default.WindowSize.Width > 0 && Properties.Settings.Default.WindowSize.Height > 0)
             {
-                this.Width = Properties.Settings.Default.WindowSize.Width;
-                this.Height = Properties.Settings.Default.WindowSize.Height;
+                Width = Properties.Settings.Default.WindowSize.Width;
+                Height = Properties.Settings.Default.WindowSize.Height;
             }
-
             if (Properties.Settings.Default.WindowLocation.X >= 0 && Properties.Settings.Default.WindowLocation.Y >= 0)
             {
-                this.Left = Properties.Settings.Default.WindowLocation.X;
-                this.Top = Properties.Settings.Default.WindowLocation.Y;
+                Left = Properties.Settings.Default.WindowLocation.X;
+                Top = Properties.Settings.Default.WindowLocation.Y;
+            }
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        private void OnPropertyChanged(string name)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
+
+        private sealed class ActivityMembershipConverter : IValueConverter
+        {
+            private readonly Activity _activity;
+            public ActivityMembershipConverter(Activity activity) { _activity = activity; }
+            public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            {
+                return value is string key && _activity.PluginKeys.Contains(key);
+            }
+            public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            {
+                return Binding.DoNothing;
             }
         }
     }
@@ -496,52 +654,15 @@ namespace AOSharp
     [ValueConversion(typeof(bool), typeof(Visibility))]
     public sealed class BoolToVisibilityConverter : IValueConverter
     {
-        public Visibility TrueValue { get; set; }
-        public Visibility FalseValue { get; set; }
-
-        public BoolToVisibilityConverter()
+        public Visibility TrueValue { get; set; } = Visibility.Visible;
+        public Visibility FalseValue { get; set; } = Visibility.Collapsed;
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            // set defaults
-            TrueValue = Visibility.Visible;
-            FalseValue = Visibility.Collapsed;
+            return value is bool flag ? (flag ? TrueValue : FalseValue) : Visibility.Collapsed;
         }
-
-        public object Convert(object value, Type targetType,
-            object parameter, CultureInfo culture)
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (!(value is bool))
-                return null;
-            return (bool)value ? TrueValue : FalseValue;
-        }
-
-        public object ConvertBack(object value, Type targetType,
-            object parameter, CultureInfo culture)
-        {
-            if (Equals(value, TrueValue))
-                return true;
-            if (Equals(value, FalseValue))
-                return false;
-            return null;
-        }
-    }
-
-    public class RemovePluginConverter : IMultiValueConverter
-    {
-        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (values[1] == DependencyProperty.UnsetValue)
-            {
-                return null;
-            }
-
-            Tuple<ObservableDictionary<string, PluginModel>, string> tuple = new Tuple<ObservableDictionary<string, PluginModel>, string>(
-                (ObservableDictionary<string, PluginModel>)values[0], (string)values[1]);
-            return tuple;
-        }
-
-        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
+            return Equals(value, TrueValue);
         }
     }
 
@@ -549,13 +670,8 @@ namespace AOSharp
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value is string path)
-            {
-                return path.Contains(@"\obj\");
-            }
-            return false;
+            return value is string path && path.IndexOf(@"\obj\", StringComparison.OrdinalIgnoreCase) >= 0;
         }
-
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
             throw new NotImplementedException();

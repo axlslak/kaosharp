@@ -1,64 +1,54 @@
-﻿using System;
-using System.Diagnostics;
+using System;
 using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
-using Newtonsoft.Json;
-using AOSharp.Bootstrap.IPC;
-using EasyHook;
-using Serilog;
 using System.Linq;
 using System.Windows;
+using AOSharp.Bootstrap.IPC;
+using EasyHook;
+using Newtonsoft.Json;
+using Serilog;
 
 namespace AOSharp
 {
+    // One runtime object per character, shared by every activity tab.
     public class Profile : INotifyPropertyChanged
     {
         public string Name { get; set; }
 
-        public ObservableCollection<string> EnabledPlugins { get; set; }
-
-        [JsonIgnore]
-        public bool _isActive;
-
+        private bool _isActive;
         [JsonIgnore]
         public bool IsActive
         {
             get => _isActive;
-            set
-            {
-                _isActive = value;
-                OnPropertyChanged("IsActive");
-            }
+            set { _isActive = value; OnPropertyChanged(nameof(IsActive)); }
         }
 
-        [JsonIgnore]
-        public bool _isInjected;
-
+        private bool _isInjected;
         [JsonIgnore]
         public bool IsInjected
         {
             get => _isInjected;
-            set
-            {
-                _isInjected = value;
-                OnPropertyChanged("IsInjected");
-            }
+            private set { _isInjected = value; OnPropertyChanged(nameof(IsInjected)); }
         }
 
         [JsonIgnore]
         public Process Process { get; set; }
-
         [JsonIgnore]
-        private IPCClient _ipcClient;
+        public string LiveActivityId { get; private set; }
+        [JsonIgnore]
+        public string LiveActivityName { get; private set; }
+        [JsonIgnore]
+        public string StatusActivityId { get; private set; }
 
+        private IPCClient _ipcClient;
         [JsonIgnore]
         public Dictionary<string, PluginStatusMessage> PluginStatuses { get; } =
             new Dictionary<string, PluginStatusMessage>(StringComparer.OrdinalIgnoreCase);
 
         public event EventHandler PluginStatusesChanged;
+        public event PropertyChangedEventHandler PropertyChanged;
 
         private void SetPluginStatus(PluginStatusMessage status)
         {
@@ -66,25 +56,28 @@ namespace AOSharp
             PluginStatusesChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        public Profile()
+        private void SetLiveActivity(string id, string name)
         {
-            IsActive = false;
-            EnabledPlugins = new ObservableCollection<string>();
+            LiveActivityId = id;
+            LiveActivityName = name;
+            OnPropertyChanged(nameof(LiveActivityId));
+            OnPropertyChanged(nameof(LiveActivityName));
         }
 
-        private void OnPropertyChanged(string propertyName)
+        private void OnPropertyChanged(string name)
         {
-            if (PropertyChanged != null)
-            {
-                PropertyChanged(this, new PropertyChangedEventArgs(propertyName));
-            }
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
         }
 
-        public bool Inject(IEnumerable<string> plugins)
+        public bool Inject(IEnumerable<string> plugins, string activityId, string activityName)
         {
+            // All tabs share this guard; staged selections never change a live injection.
+            if (!IsActive || Process == null || IsInjected || _ipcClient != null)
+                return false;
+
             string[] paths = plugins.ToArray();
+            if (paths.Length == 0) return false;
+            StatusActivityId = activityId;
             PluginStatuses.Clear();
             foreach (string path in paths)
                 SetPluginStatus(new PluginStatusMessage { Path = path, State = PluginLoadState.Loading, Detail = "Waiting for loader" });
@@ -107,6 +100,7 @@ namespace AOSharp
                     {
                         if (_ipcClient != pipe) return;
                         _ipcClient = null;
+                        SetLiveActivity(null, null);
                         IsInjected = false;
                         foreach (string path in paths)
                             SetPluginStatus(new PluginStatusMessage { Path = path, State = PluginLoadState.Failed, Detail = "Loader disconnected" });
@@ -114,12 +108,14 @@ namespace AOSharp
                 };
                 pipe.Connect();
                 pipe.Send(new LoadAssemblyMessage { Assemblies = paths });
+                SetLiveActivity(activityId, activityName);
                 IsInjected = true;
                 return true;
             }
             catch (Exception e)
             {
                 _ipcClient = null;
+                SetLiveActivity(null, null);
                 IsInjected = false;
                 try { pipe?.Disconnect(); } catch { }
                 Log.Error(e, "Failed to inject bootloader");
@@ -129,15 +125,17 @@ namespace AOSharp
             }
         }
 
-        public void Eject()
+        public void Eject(string activityId)
         {
-            if (_ipcClient == null)
+            if (_ipcClient == null || LiveActivityId != activityId)
                 return;
 
-            //Breaking the pipe will cause the bootstrapper to unload itself and any loaded plugins
+            // Breaking the pipe unloads the same bootstrap/plugin domain as before.
             IPCClient pipe = _ipcClient;
             _ipcClient = null;
+            SetLiveActivity(null, null);
             IsInjected = false;
+            StatusActivityId = null;
             PluginStatuses.Clear();
             PluginStatusesChanged?.Invoke(this, EventArgs.Empty);
             pipe.Disconnect();

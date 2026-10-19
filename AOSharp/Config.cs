@@ -1,41 +1,26 @@
-﻿using System;
-using System.IO;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
 using System.Collections.ObjectModel;
+using System.IO;
+using AOSharp.Models;
+using Newtonsoft.Json;
 
 namespace AOSharp
 {
     public class Config
     {
-        public ObservableDictionary<string, PluginModel> Plugins { get; set; }
+        public ObservableDictionary<string, PluginModel> Plugins { get; set; } =
+            new ObservableDictionary<string, PluginModel>();
 
-        public ObservableCollection<Profile> Profiles { get; set; }
+        public ObservableCollection<Activity> Activities { get; set; } =
+            new ObservableCollection<Activity>();
 
-        protected string _path;
+        private string _path;
 
         public static Config Load(string path)
         {
-            Config config;
-
-            if (File.Exists(path))
-            {
-                config = JsonConvert.DeserializeObject<Config>(File.ReadAllText(path));
-            }
-            else
-            {
-                config = new Config()
-                {
-                    Plugins = new ObservableDictionary<string, PluginModel>(),
-                    Profiles = new ObservableCollection<Profile>()
-                };
-            }
-
+            var config = File.Exists(path)
+                ? JsonConvert.DeserializeObject<Config>(File.ReadAllText(path)) ?? new Config()
+                : new Config();
             config._path = path;
-
             return config;
         }
 
