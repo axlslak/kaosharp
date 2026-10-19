@@ -1,4 +1,4 @@
-# KAOSharp 2.7.14
+# KAOSharp 2.7.15
 
 Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-knows-best/aosharp), initially imported from commit `d55eb12b5a763e5ed65851e69c50343de6c6d73c`. Version2.7.11 integrates the net source changes from [Knows Modded AOSharp](https://gitlab.com/aosharp-plus/aosp.knows-aosharp-mods), master commit `5eb65c1053748dad82d16490aca3eaaec01432dc`, also present at [sdts-group/knows-aosharp-mods](https://gitlab.com/sdts-group/knows-aosharp-mods). All upstream authorship and notices remain intact.
 
@@ -69,3 +69,11 @@ Exact window/application/executable/bootstrap file and informational versions ad
 Version2.7.13 started reading launcher.json but ignored the existing DLL catalogue in config.json, making Plugin list appear empty. Restore only that catalogue when the new setup has not initialized its library. Merge missing plugin keys without replacing current entries or activity settings; do not import old character selections or named profiles. Save records the catalogue and initialized marker, so an intentional Remove All stays empty on later launches. Original config/profile files remain untouched. Actual read errors are shown at startup while the current setup remains available; failed recovery can be retried on a later launch.
 
 Only setup loading, error reporting, documentation and exact2.7.14 version fields change. Activity behavior, bootstrap lifecycle, binding identities and dependencies are retained. Source/XML/publication review only; no builds/tests/releases/CI or runtime confirmation.
+
+## 2.7.15 — consistent themed grids and readable headers
+
+Inherit the installed MahApps1.6.5 grid/cell/header/row templates instead of falling back to native light surfaces. The whole grid viewport now uses the control background, including an empty library and space below rows. Headers pair the theme's GrayBrush8 background with TextBrush, replacing an unavailable brush key and fixed white text. Rows, borders and alternating backgrounds use the same palette. Selection uses a subtle themed fill and accent cell borders while preserving row status foregrounds.
+
+The activity view uses the same grid styles. The character list retains its MahApps item template, and column-name editors use themed background/text/caret/border brushes. Remove excess padding inside the small + button so its symbol is visible. App.xaml still selects BaseDark; no Windows theme detection or dependency upgrade is introduced. Brush/style names were checked against the pinned MahApps1.6.5 source, including matching BaseLight palette definitions; this is not a rendered light-theme validation.
+
+Exact application/window/executable/bootstrap versions advance to2.7.15. Configuration, activity selections, injection and bootstrap behavior are unchanged. Source/XML/publication review only; no builds/tests/releases/CI or post-change Windows rendering validation.

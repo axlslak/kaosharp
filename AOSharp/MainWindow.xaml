@@ -6,7 +6,9 @@
         AllowDrop="True"
         PreviewDragOver="PluginFiles_DragOver"
         PreviewDrop="PluginFiles_Drop"
-        Title="KAO# 2.7.14"
+        Title="KAO# 2.7.15"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextBrush}"
         Width="1000" Height="500" MinWidth="1000" MinHeight="450">
     <Controls:MetroWindow.RightWindowCommands>
         <Controls:WindowCommands>
@@ -26,30 +28,72 @@
                 <Setter Property="Foreground"
                         Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type DataGridRow}}}"/>
             </Style>
-            <Style TargetType="{x:Type DataGrid}">
+            <!-- Inherit the installed MahApps 1.6.x templates; native fallbacks are light. -->
+            <Style x:Key="LauncherGridCellStyle" TargetType="{x:Type DataGridCell}"
+                   BasedOn="{StaticResource MetroDataGridCell}">
+                <Setter Property="BorderBrush" Value="{DynamicResource GrayBrush8}"/>
+                <Setter Property="BorderThickness" Value="0.5"/>
+                <Setter Property="Padding" Value="4,2"/>
+                <Setter Property="Foreground"
+                        Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type DataGridRow}}}"/>
+                <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource AccentColorBrush}"/>
+                        <Setter Property="Foreground"
+                                Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type DataGridRow}}}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="LauncherGridHeaderStyle" TargetType="{x:Type DataGridColumnHeader}"
+                   BasedOn="{StaticResource MetroDataGridColumnHeader}">
+                <Setter Property="Background" Value="{DynamicResource GrayBrush8}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource GrayBrush7}"/>
+                <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                <Setter Property="Padding" Value="8,6"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
+            </Style>
+            <Style x:Key="LauncherGridRowStyle" TargetType="{x:Type DataGridRow}"
+                   BasedOn="{StaticResource MetroDataGridRow}">
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource GrayBrush10}"/>
+                    </Trigger>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource GrayBrush10}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+            <Style TargetType="{x:Type DataGrid}" BasedOn="{StaticResource MetroDataGrid}">
+                <!-- Background colors the unused viewport too, including an entirely empty list. -->
+                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource GrayBrush8}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="CellStyle" Value="{StaticResource LauncherGridCellStyle}"/>
+                <Setter Property="ColumnHeaderStyle" Value="{StaticResource LauncherGridHeaderStyle}"/>
+                <Setter Property="RowStyle" Value="{StaticResource LauncherGridRowStyle}"/>
                 <Setter Property="AutoGenerateColumns" Value="False"/>
                 <Setter Property="CanUserAddRows" Value="False"/>
                 <Setter Property="CanUserReorderColumns" Value="False"/>
                 <Setter Property="IsReadOnly" Value="True"/>
                 <Setter Property="GridLinesVisibility" Value="All"/>
-                <Setter Property="HorizontalGridLinesBrush" Value="#555555"/>
-                <Setter Property="VerticalGridLinesBrush" Value="#555555"/>
+                <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource GrayBrush8}"/>
+                <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource GrayBrush8}"/>
                 <Setter Property="AlternationCount" Value="2"/>
-                <Setter Property="RowBackground" Value="#2A2A2A"/>
-                <Setter Property="AlternatingRowBackground" Value="#242424"/>
+                <Setter Property="RowBackground" Value="{DynamicResource ControlBackgroundBrush}"/>
+                <Setter Property="AlternatingRowBackground" Value="{DynamicResource GrayBrush10}"/>
             </Style>
-            <Style TargetType="{x:Type DataGridCell}">
-                <Setter Property="BorderBrush" Value="#555555"/>
-                <Setter Property="BorderThickness" Value="0.5"/>
-                <Setter Property="Padding" Value="4,2"/>
-            </Style>
-            <Style TargetType="{x:Type DataGridColumnHeader}">
-                <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.GrayBrush}"/>
-                <Setter Property="Foreground" Value="White"/>
-                <Setter Property="BorderBrush" Value="#555555"/>
-                <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="Padding" Value="6,4"/>
-                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Style TargetType="{x:Type TextBox}" BasedOn="{StaticResource MetroTextBox}">
+                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="CaretBrush" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource GrayBrush2}"/>
             </Style>
         </ResourceDictionary>
     </Window.Resources>
@@ -64,7 +108,8 @@
                 <TabItem x:Name="LibraryTab" Header="Plugin list" Padding="14,5"/>
                 <TabItem x:Name="NewActivityTab" Padding="0" IsTabStop="False">
                     <TabItem.Header>
-                        <Button Content="+" Width="32" Height="28" FontSize="18"
+                        <Button Content="+" Width="32" Height="28" MinWidth="32" MinHeight="28"
+                                Padding="0" FontSize="18" Foreground="{DynamicResource TextBrush}"
                                 BorderThickness="0" Background="Transparent" Focusable="False"
                                 ToolTip="Create an activity: name its new column on Plugin list"
                                 Click="NewActivity_Click"/>
@@ -99,7 +144,7 @@
                     </ContextMenu>
                 </DataGrid.ContextMenu>
                 <DataGrid.RowStyle>
-                    <Style TargetType="{x:Type DataGridRow}">
+                    <Style TargetType="{x:Type DataGridRow}" BasedOn="{StaticResource LauncherGridRowStyle}">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding Value.Path, Converter={StaticResource PathIsInvalidConverter}}" Value="True">
                                 <Setter Property="Foreground" Value="Red"/>
@@ -116,6 +161,8 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <ListBox x:Name="ProfileListBox" Grid.Column="0" Margin="3" BorderThickness="2"
+                     Background="{DynamicResource ControlBackgroundBrush}" Foreground="{DynamicResource TextBrush}"
+                     BorderBrush="{DynamicResource GrayBrush8}"
                      ItemsSource="{Binding Profiles}" SelectionChanged="ProfileListBox_SelectionChanged">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
@@ -126,7 +173,7 @@
                     </DataTemplate>
                 </ListBox.ItemTemplate>
                 <ListBox.ItemContainerStyle>
-                    <Style TargetType="{x:Type ListBoxItem}">
+                    <Style TargetType="{x:Type ListBoxItem}" BasedOn="{StaticResource MetroListBoxItem}">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsActive}" Value="False">
                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -173,7 +220,7 @@
                                             ElementStyle="{StaticResource PluginStatusTextStyle}"/>
                     </DataGrid.Columns>
                     <DataGrid.RowStyle>
-                        <Style TargetType="{x:Type DataGridRow}">
+                        <Style TargetType="{x:Type DataGridRow}" BasedOn="{StaticResource LauncherGridRowStyle}">
                             <Setter Property="ToolTip" Value="{Binding LoadDetail}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding LoadStatus}" Value="Initialized">
