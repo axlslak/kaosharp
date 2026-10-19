@@ -324,28 +324,56 @@ namespace AOSharp
             }));
         }
 
+        private enum ActivityState { Neutral, Normal, Failed, Unknown }
+
+        private static ActivityState ProfileActivityState(Profile profile)
+        {
+            if (!profile.IsActive || profile.LoaderDisconnected || profile.PluginStatuses.Count == 0)
+                return ActivityState.Unknown;
+            if (profile.PluginStatuses.Values.All(status => status.State == PluginLoadState.Failed))
+                return ActivityState.Failed;
+            if (profile.IsInjected && profile.PluginStatuses.Values.All(status => status.State == PluginLoadState.Initialized))
+                return ActivityState.Normal;
+            return ActivityState.Unknown;
+        }
+
+        private static string ProfileActivityDetail(Profile profile, ActivityState state)
+        {
+            if (!profile.IsActive) return "Client no longer detected; result uncertain";
+            if (profile.LoaderDisconnected) return "Loader connection lost; result uncertain";
+            if (state == ActivityState.Normal) return "All selected plugins reported initialization";
+            if (state == ActivityState.Failed) return "Plugin loading failed";
+            if (profile.PluginStatuses.Values.Any(status => status.State == PluginLoadState.Initialized) &&
+                profile.PluginStatuses.Values.Any(status => status.State == PluginLoadState.Failed))
+                return "Mixed results: initialized and failed plugins";
+            if (profile.PluginStatuses.Values.Any(status => status.State == PluginLoadState.Loading))
+                return "Waiting for plugin reports";
+            return "Result unknown";
+        }
+
         private void RefreshTabStatuses()
         {
-            Profile[] online = Profiles.Where(profile => profile.IsActive).ToArray();
             foreach (TabItem tab in WorkspaceTabs.Items.OfType<TabItem>())
             {
                 var activity = tab.Tag as Activity;
                 if (activity == null) continue;
-                Profile[] injected = online.Where(profile => profile.IsInjected &&
-                    profile.LiveActivityId == activity.Id).ToArray();
-                Profile[] failed = online.Where(profile => profile.StatusActivityId == activity.Id &&
-                    profile.PluginStatuses.Values.Any(status => status.State == PluginLoadState.Failed)).ToArray();
-                // Runtime ownership/statuses, never the editable next-injection selection.
-                string state = failed.Length > 0 ? "Failed" : injected.Length > 0 ? "Injected" : "";
-                tab.Style = (Style)FindResource(state == "Failed" ? "FailedActivityTabStyle" :
-                    state == "Injected" ? "InjectedActivityTabStyle" : "ActivityTabStyle");
-                tab.Header = activity.Name + (state.Length == 0 ? "" : " · " + state);
-                string detail = "Injected: " + (injected.Length == 0 ? "none" :
-                    string.Join(", ", injected.Select(profile => profile.Name.Trim())));
-                if (failed.Length > 0)
-                    detail += "\nFailed plugins: " + string.Join(", ", failed.Select(profile => profile.Name.Trim()));
-                tab.ToolTip = detail;
-                AutomationProperties.SetItemStatus(tab, state.Length == 0 ? "Not injected" : state);
+                // Keep missing clients in the summary: disappearing is uncertain, not a clean success.
+                // Only actual runtime ownership/results participate, never staged plugin selections.
+                var participants = Profiles.Where(profile => profile.StatusActivityId == activity.Id ||
+                    profile.LiveActivityId == activity.Id)
+                    .Select(profile => new { Profile = profile, State = ProfileActivityState(profile) }).ToArray();
+                ActivityState state = participants.Length == 0 ? ActivityState.Neutral :
+                    participants.All(result => result.State == ActivityState.Normal) ? ActivityState.Normal :
+                    participants.All(result => result.State == ActivityState.Failed) ? ActivityState.Failed :
+                    ActivityState.Unknown;
+                tab.Style = (Style)FindResource(state == ActivityState.Normal ? "InjectedActivityTabStyle" :
+                    state == ActivityState.Failed ? "FailedActivityTabStyle" :
+                    state == ActivityState.Unknown ? "UnknownActivityTabStyle" : "ActivityTabStyle");
+                tab.Header = activity.Name;
+                tab.ToolTip = participants.Length == 0 ? "No injection results for this activity" :
+                    string.Join("\n", participants.Select(result => result.Profile.Name.Trim() + ": " +
+                        ProfileActivityDetail(result.Profile, result.State)));
+                AutomationProperties.SetItemStatus(tab, state.ToString());
             }
         }
 

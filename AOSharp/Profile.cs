@@ -41,6 +41,8 @@ namespace AOSharp
         public string LiveActivityName { get; private set; }
         [JsonIgnore]
         public string StatusActivityId { get; private set; }
+        [JsonIgnore]
+        public bool LoaderDisconnected { get; private set; }
 
         private IPCClient _ipcClient;
         [JsonIgnore]
@@ -88,6 +90,7 @@ namespace AOSharp
             string[] paths = plugins.ToArray();
             if (paths.Length == 0) return false;
             StatusActivityId = activityId;
+            LoaderDisconnected = false;
             PluginStatuses.Clear();
             foreach (string path in paths)
                 SetPluginStatus(new PluginStatusMessage { Path = path, State = PluginLoadState.Loading, Detail = "Waiting for loader" });
@@ -109,6 +112,7 @@ namespace AOSharp
                     Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                     {
                         if (_ipcClient != pipe) return;
+                        LoaderDisconnected = true;
                         _ipcClient = null;
                         SetLiveActivity(null, null);
                         IsInjected = false;
@@ -146,6 +150,7 @@ namespace AOSharp
             SetLiveActivity(null, null);
             IsInjected = false;
             StatusActivityId = null;
+            LoaderDisconnected = false;
             PluginStatuses.Clear();
             PluginStatusesChanged?.Invoke(this, EventArgs.Empty);
             pipe.Disconnect();

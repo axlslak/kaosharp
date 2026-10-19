@@ -70,6 +70,10 @@ namespace AOSharp
             var r = _colours;
             // Status colours supplement Windows surfaces; contrast schemes retain their own ink/paper.
             bool contrast = SystemParameters.HighContrast;
+            SetBrushes(r, contrast ? p.Surface : Colors.White, "ActivityNeutralBrush");
+            SetBrushes(r, contrast ? p.Text : Colors.Black, "ActivityNeutralTextBrush");
+            SetBrushes(r, contrast ? p.Surface : Colors.Orange, "ActivityUnknownBrush");
+            SetBrushes(r, contrast ? p.Text : Colors.Black, "ActivityUnknownTextBrush");
             SetBrushes(r, contrast ? p.Surface : Colors.Green, "ActivityInjectedBrush");
             SetBrushes(r, contrast ? p.Surface : Colors.Firebrick, "ActivityFailedBrush");
             SetBrushes(r, contrast ? p.Text : Colors.White, "ActivityStatusTextBrush");

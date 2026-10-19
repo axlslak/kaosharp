@@ -6,7 +6,7 @@
         AllowDrop="True"
         PreviewDragOver="PluginFiles_DragOver"
         PreviewDrop="PluginFiles_Drop"
-        Title="KAO# 2.7.21"
+        Title="KAO# 2.7.22"
         Icon="Assets/eye.ico" ShowIconOnTitleBar="True"
         ShowSystemMenuOnRightClick="False"
         Background="{DynamicResource WindowBackgroundBrush}"
@@ -33,10 +33,18 @@
                                              TrueValue="Visible" FalseValue="Collapsed"/>
             <local:PathIsInvalidConverter x:Key="PathIsInvalidConverter"/>
             <Style x:Key="ActivityTabStyle" TargetType="TabItem" BasedOn="{StaticResource {x:Type TabItem}}">
+                <Setter Property="Background" Value="{DynamicResource ActivityNeutralBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource ActivityNeutralTextBrush}"/>
                 <Setter Property="Controls:TabControlHelper.UnderlineSelectedBrush"
                         Value="{Binding Foreground, RelativeSource={RelativeSource Self}}"/>
                 <Setter Property="Controls:TabControlHelper.UnderlineMouseOverSelectedBrush"
                         Value="{Binding Foreground, RelativeSource={RelativeSource Self}}"/>
+                <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource ActivityNeutralBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource ActivityNeutralTextBrush}"/>
+                    </Trigger>
+                </Style.Triggers>
             </Style>
             <Style x:Key="InjectedActivityTabStyle" TargetType="TabItem" BasedOn="{StaticResource ActivityTabStyle}">
                 <Setter Property="Background" Value="{DynamicResource ActivityInjectedBrush}"/>
@@ -55,6 +63,16 @@
                     <Trigger Property="IsSelected" Value="True">
                         <Setter Property="Background" Value="{DynamicResource ActivityFailedBrush}"/>
                         <Setter Property="Foreground" Value="{DynamicResource ActivityStatusTextBrush}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="UnknownActivityTabStyle" TargetType="TabItem" BasedOn="{StaticResource ActivityTabStyle}">
+                <Setter Property="Background" Value="{DynamicResource ActivityUnknownBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource ActivityUnknownTextBrush}"/>
+                <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource ActivityUnknownBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource ActivityUnknownTextBrush}"/>
                     </Trigger>
                 </Style.Triggers>
             </Style>
