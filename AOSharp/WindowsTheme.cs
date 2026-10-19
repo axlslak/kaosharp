@@ -68,6 +68,15 @@ namespace AOSharp
         {
             var p = Palette.Read();
             var r = _colours;
+            // Status colours supplement Windows surfaces; contrast schemes retain their own ink/paper.
+            bool contrast = SystemParameters.HighContrast;
+            SetBrushes(r, contrast ? p.Surface : Colors.Green, "ActivityInjectedBrush");
+            SetBrushes(r, contrast ? p.Surface : Colors.Firebrick, "ActivityFailedBrush");
+            SetBrushes(r, contrast ? p.Text : Colors.White, "ActivityStatusTextBrush");
+            SetBrushes(r, contrast ? p.Text : StatusText(Colors.Green, p.Surface), "PluginInitializedTextBrush");
+            SetBrushes(r, contrast ? p.Text : StatusText(Colors.Firebrick, p.Surface), "PluginFailedTextBrush");
+            SetBrushes(r, contrast ? p.SelectionText : StatusText(Colors.Green, p.Selection), "PluginInitializedSelectedTextBrush");
+            SetBrushes(r, contrast ? p.SelectionText : StatusText(Colors.Firebrick, p.Selection), "PluginFailedSelectedTextBrush");
             SetBrushes(r, p.Surface, "WindowBackgroundBrush", "ControlBackgroundBrush", "WhiteBrush",
                 "WhiteColorBrush", "DisabledWhiteBrush", "CheckBoxBackgroundBrush", "FlatButtonBackgroundBrush",
                 "FlyoutBackgroundBrush", "MahApps.Metro.HamburgerMenu.PaneBackgroundBrush");
@@ -160,6 +169,24 @@ namespace AOSharp
             r[SystemColors.ControlDarkDarkBrushKey] = Brush(p.Border);
             r[SystemColors.ControlLightBrushKey] = Brush(p.Control);
             r[SystemColors.ControlLightLightBrushKey] = Brush(p.Control);
+        }
+
+        private static Color StatusText(Color colour, Color background)
+        {
+            Color ink = WindowsColours.Contrast(Colors.White, background) >=
+                WindowsColours.Contrast(Colors.Black, background) ? Colors.White : Colors.Black;
+            // Keep the status hue as far as the actual Windows background permits.
+            for (int step = 0; step <= 20; step++)
+            {
+                double amount = step / 20.0;
+                Color candidate = Color.FromRgb(
+                    (byte)Math.Round(colour.R + (ink.R - colour.R) * amount),
+                    (byte)Math.Round(colour.G + (ink.G - colour.G) * amount),
+                    (byte)Math.Round(colour.B + (ink.B - colour.B) * amount));
+                if (WindowsColours.Contrast(candidate, background) >= 4.5)
+                    return candidate;
+            }
+            return ink;
         }
 
         private static SolidColorBrush Brush(Color colour)
@@ -316,7 +343,7 @@ namespace AOSharp
                     ? Color.FromArgb(c.A, c.R, c.G, c.B) : fallback;
             }
 
-            private static double Contrast(Color a, Color b)
+            internal static double Contrast(Color a, Color b)
             {
                 double x = Luminance(a), y = Luminance(b);
                 return (Math.Max(x, y) + 0.05) / (Math.Min(x, y) + 0.05);

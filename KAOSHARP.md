@@ -1,4 +1,4 @@
-# KAOSharp 2.7.18
+# KAOSharp 2.7.19
 
 Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-knows-best/aosharp), initially imported from commit `d55eb12b5a763e5ed65851e69c50343de6c6d73c`. Version2.7.11 integrates the net source changes from [Knows Modded AOSharp](https://gitlab.com/aosharp-plus/aosp.knows-aosharp-mods), master commit `5eb65c1053748dad82d16490aca3eaaec01432dc`, also present at [sdts-group/knows-aosharp-mods](https://gitlab.com/sdts-group/knows-aosharp-mods). All upstream authorship and notices remain intact.
 
@@ -105,3 +105,13 @@ Remove the redundant Save buttons from Plugin list and activity views. Existing 
 A shared status line starts with Changes save automatically, reports Saved after a successful write, and keeps a failure message with Retry available on either view after a write error. The existing error dialog retains details; overlapping failures do not open duplicate dialogs. Closing retries a failed write and asks before discarding any still-unsaved changes, with keeping the window open as the default. Saving does not apply changes to running injections.
 
 Exact title/application/injector/bootstrap file/informational versions2.7.18; assembly identities, dependencies, configuration format, theme resources and injection behavior unchanged. Static source/diff/XML/event-binding and publication review only; no builds, tests, releases, CI or Windows runtime verification.
+
+## 2.7.19 — activity and plugin status colours
+
+Activity tabs aggregate all online characters: green when any character is injected into that activity, red with priority when any character has a failed plugin status scoped to that activity, otherwise ordinary Windows colours. Failed bootloader attempts and loader disconnections can show red while the client remains online. Ejection or a later status snapshot clears the relevant cue; offline characters are excluded. Captions include Injected/Failed and tooltips name injected/failed characters. Green means injected, not proof that every plugin function works. Staged selections do not alter runtime ownership or these summaries.
+
+Subscribe to status/property changes for every discovered character, independently of the selected character/tab. Reconcile subscriptions on collection changes and detach at window close. Coalesce dispatcher updates after a discovery pass so its temporary inactive flags do not render as tab flicker. The existing selected underline and header weight remain separate from runtime colour; selected/hover-selected underline ink follows the tab's matched foreground. Library and + remain navigation/setup controls.
+
+Restore green Initialized rows and red Failed/missing-DLL rows. Calculate text shades for actual normal and selected Windows backgrounds, retaining at least4.5:1 text contrast, existing status words, tooltips and emphasis. Compact Initialized/Failed status labels retain the green/red fill even when selected name text needs a subtler shade. Semantic tab/status fills use paired white text on green/firebrick. Windows contrast schemes retain their own surface/text and selection pairs, with explicit status labels. Theme preference refresh updates these resources in place. Ordinary Windows colour inheritance remains.
+
+Exact window/application/injector/bootstrap file/informational versions2.7.19; assembly identities/dependencies, configuration, loading and injection behavior retained. Static source/XML/resource/event-lifecycle/contrast calculations and exact publication review only. No builds, tests, releases, CI or Windows rendering/runtime verification.

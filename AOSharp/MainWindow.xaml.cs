@@ -9,9 +9,11 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Threading;
 using AOSharp.Bootstrap.IPC;
 using AOSharp.Data;
 using AOSharp.Models;
@@ -38,6 +40,9 @@ namespace AOSharp
         private string _saveStatus = "Changes save automatically.";
         private bool _saveFailed;
         private bool _saveErrorDialogOpen;
+        private readonly HashSet<Profile> _observedProfiles = new HashSet<Profile>();
+        private bool _tabStatusRefreshPending;
+        private bool _closed;
 
         public ObservableCollection<KeyValuePair<string, PluginModel>> LibraryPlugins { get; } =
             new ObservableCollection<KeyValuePair<string, PluginModel>>();
@@ -107,8 +112,7 @@ namespace AOSharp
                 LibraryGrid.Columns.Insert(LibraryGrid.Columns.Count - 2, CreateMembershipColumn(activity));
             }
 
-            foreach (Profile profile in Profiles)
-                profile.PropertyChanged += Profile_PropertyChanged;
+            ObserveProfiles();
             Profiles.CollectionChanged += Profiles_CollectionChanged;
             Config.Plugins.CollectionChanged += Plugins_CollectionChanged;
             _ready = true;
@@ -149,7 +153,48 @@ namespace AOSharp
         private void AddActivityTab(Activity activity)
         {
             WorkspaceTabs.Items.Insert(WorkspaceTabs.Items.Count - 1,
-                new TabItem { Header = activity.Name, Tag = activity, Padding = new Thickness(14, 5, 14, 5) });
+                new TabItem { Header = activity.Name, Tag = activity, Padding = new Thickness(14, 5, 14, 5),
+                    Style = (Style)FindResource("ActivityTabStyle") });
+            QueueTabStatusRefresh();
+        }
+
+        private void QueueTabStatusRefresh()
+        {
+            if (_closed || _tabStatusRefreshPending)
+                return;
+            _tabStatusRefreshPending = true;
+            // Discovery briefly marks every client inactive; render only its completed snapshot.
+            Dispatcher.BeginInvoke(DispatcherPriority.DataBind, new Action(() =>
+            {
+                _tabStatusRefreshPending = false;
+                if (!_closed)
+                    RefreshTabStatuses();
+            }));
+        }
+
+        private void RefreshTabStatuses()
+        {
+            Profile[] online = Profiles.Where(profile => profile.IsActive).ToArray();
+            foreach (TabItem tab in WorkspaceTabs.Items.OfType<TabItem>())
+            {
+                var activity = tab.Tag as Activity;
+                if (activity == null) continue;
+                Profile[] injected = online.Where(profile => profile.IsInjected &&
+                    profile.LiveActivityId == activity.Id).ToArray();
+                Profile[] failed = online.Where(profile => profile.StatusActivityId == activity.Id &&
+                    profile.PluginStatuses.Values.Any(status => status.State == PluginLoadState.Failed)).ToArray();
+                // Runtime ownership/statuses, never the editable next-injection selection.
+                string state = failed.Length > 0 ? "Failed" : injected.Length > 0 ? "Injected" : "";
+                tab.Style = (Style)FindResource(state == "Failed" ? "FailedActivityTabStyle" :
+                    state == "Injected" ? "InjectedActivityTabStyle" : "ActivityTabStyle");
+                tab.Header = activity.Name + (state.Length == 0 ? "" : " · " + state);
+                string detail = "Injected: " + (injected.Length == 0 ? "none" :
+                    string.Join(", ", injected.Select(profile => profile.Name.Trim())));
+                if (failed.Length > 0)
+                    detail += "\nFailed plugins: " + string.Join(", ", failed.Select(profile => profile.Name.Trim()));
+                tab.ToolTip = detail;
+                AutomationProperties.SetItemStatus(tab, state.Length == 0 ? "Not injected" : state);
+            }
         }
 
         private void BeginActivity()
@@ -390,27 +435,45 @@ namespace AOSharp
 
         private void Profiles_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
-            if (e.NewItems != null)
-                foreach (Profile profile in e.NewItems)
+            ObserveProfiles();
+        }
+
+        private void ObserveProfiles()
+        {
+            foreach (Profile profile in _observedProfiles.Where(profile => !Profiles.Contains(profile)).ToArray())
+            {
+                profile.PropertyChanged -= Profile_PropertyChanged;
+                profile.PluginStatusesChanged -= Profile_PluginStatusesChanged;
+                _observedProfiles.Remove(profile);
+            }
+            foreach (Profile profile in Profiles)
+                if (_observedProfiles.Add(profile))
+                {
                     profile.PropertyChanged += Profile_PropertyChanged;
-            if (e.OldItems != null)
-                foreach (Profile profile in e.OldItems)
-                    profile.PropertyChanged -= Profile_PropertyChanged;
+                    profile.PluginStatusesChanged += Profile_PluginStatusesChanged;
+                }
+            QueueTabStatusRefresh();
+        }
+
+        private void Profile_PluginStatusesChanged(object sender, EventArgs e)
+        {
+            if (ReferenceEquals(sender, _activeProfile))
+                RefreshPluginStatuses(sender, e);
+            QueueTabStatusRefresh();
         }
 
         private void Profile_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (ReferenceEquals(sender, _activeProfile))
                 RefreshRuntimeControls();
+            if (e.PropertyName == nameof(Profile.IsActive) || e.PropertyName == nameof(Profile.IsInjected) ||
+                e.PropertyName == nameof(Profile.LiveActivityId))
+                QueueTabStatusRefresh();
         }
 
         private void ProfileListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_activeProfile != null)
-                _activeProfile.PluginStatusesChanged -= RefreshPluginStatuses;
             _activeProfile = (Profile)ProfileListBox.SelectedItem;
-            if (_activeProfile != null)
-                _activeProfile.PluginStatusesChanged += RefreshPluginStatuses;
             RefreshActivityPlugins();
         }
 
@@ -657,6 +720,19 @@ namespace AOSharp
             Properties.Settings.Default.WindowSize = new Size(RestoreBounds.Width, RestoreBounds.Height);
             Properties.Settings.Default.Save();
             base.OnClosing(e);
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _closed = true;
+            Profiles.CollectionChanged -= Profiles_CollectionChanged;
+            foreach (Profile profile in _observedProfiles)
+            {
+                profile.PropertyChanged -= Profile_PropertyChanged;
+                profile.PluginStatusesChanged -= Profile_PluginStatusesChanged;
+            }
+            _observedProfiles.Clear();
+            base.OnClosed(e);
         }
 
         protected override void OnSourceInitialized(EventArgs e)

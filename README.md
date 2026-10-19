@@ -4,15 +4,15 @@ Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-k
 
 This tree uses the classic Windows/.NET Framework 4.8 WPF launcher and EasyHook. It is not the separate .NET8 launcher.
 
-Version **2.7.18** starts on **Plugin list**, your shared plugin library. Add DLLs together with Add Plugin or drag and drop. Use **+** to create an activity column, type its name in the header and press Enter, then tick the plugins available in that activity. Open its new tab to choose plugins for each character and inject.
+Version **2.7.19** starts on **Plugin list**, your shared plugin library. Add DLLs together with Add Plugin or drag and drop. Use **+** to create an activity column, type its name in the header and press Enter, then tick the plugins available in that activity. Open its new tab to choose plugins for each character and inject.
 
 Different characters can run different activities. Choices can be prepared while plugins are running; they apply to the next injection. Switching tabs leaves running clients alone. Eject All affects the current activity only. Initialization status, the one clean retry, and saved window geometry remain available.
 
-The selected tab has a Windows-coloured fill, matching text and a persistent underline, including when its activity is empty or the window loses focus. This marks the page being viewed. Running activity ownership stays with each character's activity label and status.
+Activity tabs turn green when an online character is injected into them. Red takes priority if any online character has a failed plugin in that activity, including an unsuccessful injection. Captions show Injected or Failed, and tooltips name the affected characters. Tabs without either state use the ordinary Windows colours. The selected tab keeps its own underline and header emphasis, including on a coloured tab. Browsing tabs still changes only the page being viewed.
 
 Setup is stored in `launcher.json` beside the launcher. On first use of this format, registered DLLs are recovered from the existing `config.json`; current library entries and activities are kept. Completed setup changes save automatically, including the recovered catalogue. A shared status line confirms successful writes and offers Retry if writing fails. Closing retries failed writes and asks before discarding changes that remain unsaved. Old character selections and named profiles are not imported, and the older files are not changed. Keep your DLLs in their intended folders; registration references those files.
 
-Appearance uses colours reported by Windows, including app surfaces, text, accents and selection. Windows contrast schemes take priority. Preference notifications refresh the colours while the launcher is open; older systems use their native system colours. The existing MahApps controls remain in use. Status words, bold and italic emphasis convey state without imposing fixed red/green/orange text on the selected scheme.
+Appearance uses colours reported by Windows, including app surfaces, text, accents and selection. Windows contrast schemes take priority. Preference notifications refresh the colours while the launcher is open; older systems use their native system colours. The existing MahApps controls remain in use. Initialized plugin rows are green; failed plugins and missing DLLs are red. Name text adjusts for the actual normal and selected backgrounds; compact green/red status labels keep the colour visible on selected rows too. Words and font emphasis remain. Windows contrast schemes use their own paired colours and the same status labels.
 
 See [KAOSHARP.md](KAOSHARP.md) for source provenance, behavior and validation limits.
 
