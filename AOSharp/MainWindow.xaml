@@ -6,7 +6,7 @@
         AllowDrop="True"
         PreviewDragOver="PluginFiles_DragOver"
         PreviewDrop="PluginFiles_Drop"
-        Title="KAO# 2.7.23"
+        Title="KAO# 2.7.24"
         Icon="Assets/eye.ico" ShowIconOnTitleBar="True"
         ShowSystemMenuOnRightClick="False"
         Background="{DynamicResource WindowBackgroundBrush}"
@@ -280,14 +280,19 @@
             </ListBox>
             <DockPanel Grid.Column="1">
                 <StackPanel DockPanel.Dock="Top">
-                    <StackPanel Margin="3" Orientation="Horizontal">
+                    <WrapPanel Margin="3">
                         <Button Margin="3" Padding="12,4" Click="InjectButton_Clicked" IsEnabled="{Binding CanInject}">Inject</Button>
                         <Button Margin="3" Padding="12,4" Click="EjectButton_Clicked" IsEnabled="{Binding CanEject}">Eject</Button>
                         <Button Margin="3" Padding="12,4" Click="InjectAllButton_Clicked">Inject All</Button>
                         <Button Margin="3" Padding="12,4" Click="EjectAllButton_Clicked"
                                 ToolTip="Eject characters running this activity only">Eject All</Button>
-                    </StackPanel>
+                        <Button Margin="3" Padding="12,4" Click="ReinjectButton_Clicked" IsEnabled="{Binding CanReinject}"
+                                ToolTip="Unload this character’s old plugins, then load its selection for this activity">Reinject</Button>
+                        <Button Margin="3" Padding="12,4" Click="ReinjectAllButton_Clicked" IsEnabled="{Binding CanReinjectAll}"
+                                ToolTip="Queue a handover to this activity for currently injected characters">Reinject All</Button>
+                    </WrapPanel>
                     <TextBlock Text="{Binding InjectionHint}" TextWrapping="Wrap" Margin="8,0,8,7"/>
+                    <TextBlock Text="{Binding HandoverSummary}" TextWrapping="Wrap" Margin="8,0,8,7"/>
                     <TextBlock Margin="8,0,8,7" TextWrapping="Wrap"
                                Visibility="{Binding ActivityHasNoPlugins, Converter={StaticResource BoolToVisibleConverter}}"
                                Text="Choose plugins for this activity on Plugin list."/>

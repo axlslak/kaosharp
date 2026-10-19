@@ -3,6 +3,7 @@
     public enum HookOpCode : byte
     {
         LoadAssembly,
-        PluginStatus
+        PluginStatus,
+        ProfileControl
     }
 }

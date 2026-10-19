@@ -1,4 +1,4 @@
-# KAOSharp 2.7.20
+# KAOSharp 2.7.24
 
 Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-knows-best/aosharp), initially imported from commit `d55eb12b5a763e5ed65851e69c50343de6c6d73c`. Version2.7.11 integrates the net source changes from [Knows Modded AOSharp](https://gitlab.com/aosharp-plus/aosp.knows-aosharp-mods), master commit `5eb65c1053748dad82d16490aca3eaaec01432dc`, also present at [sdts-group/knows-aosharp-mods](https://gitlab.com/sdts-group/knows-aosharp-mods). All upstream authorship and notices remain intact.
 
@@ -123,3 +123,10 @@ Right-click an activity tab for Rename or Delete; the target is the clicked acti
 Delete asks before removing the activity and its assignments, with Cancel as default. Keep the global DLL catalogue and files. Disable Delete while any character still owns an injection in that activity, and recheck ownership after the confirmation before removing anything. Select Plugin list before removing the selected activity, including the last one, so + cannot be selected automatically. Deleting an unselected tab leaves the selected page in place. Rename/delete use existing immediate saving and save-error/retry feedback.
 
 Exact title/application/injector/bootstrap file/informational versions2.7.20; assembly identities, dependency versions, configuration format and injection lifecycle retained. Static source/diff/XML/pinned dialog API/event/identity review and exact publication checks only; no builds, tests, releases, CI or Windows runtime confirmation.
+
+
+## 2.7.24 — queued activity handover
+
+Reinject and Reinject All share a serial launcher queue with built-in bootstrap `/ao#` commands and a clickable activity list. Target plugin paths are captured and validated before unloading. The existing native bootstrap and pipe remain connected while the engine thread tears down and unloads the old managed domain, acknowledges cleanup, and loads the new domain. Plugin reports carry operation IDs; only the current generation updates the launcher. A capability/readiness handshake rejects older injected runtimes. Cleanup failure and unconfirmed timeouts block further operations until recovery; other characters may proceed. Browsing and staging remain available, and active/pending activity deletion stays guarded.
+
+See [Switching activities](docs/PROFILE-SWITCHING.md) for commands, batch scope and limits. Unexpected loader disconnects also require a game-client restart because cleanup is unconfirmed. Binding identities/dependencies remain unchanged. Static source/XML/diff/publication review only; no builds, tests, releases, CI or in-game verification. Native effects beyond managed cleanup and plugin-reported initialization remain unproven.

@@ -80,9 +80,9 @@ namespace AOSharp
         }
 
         public bool HasProfileSelected => _activeActivity != null && _activeProfile?.IsActive == true;
-        public bool CanInject => HasProfileSelected && !_activeProfile.IsInjected;
+        public bool CanInject => HasProfileSelected && _activeProfile.CanStartInjection;
         public bool CanEject => HasProfileSelected && _activeProfile.IsInjected &&
-                                _activeProfile.LiveActivityId == _activeActivity.Id;
+                                _activeProfile.LiveActivityId == _activeActivity.Id && !_activeProfile.IsSwitching && !_activeProfile.RequiresRestart;
         public bool ActivityHasNoPlugins => ActivityPlugins.Count == 0;
 
         public string InjectionHint
@@ -91,12 +91,17 @@ namespace AOSharp
             {
                 if (!HasProfileSelected)
                     return "Choose a running character, then select its plugins for this activity.";
+                if (_activeProfile.RequiresRestart || _activeProfile.IsSwitching)
+                    return _activeProfile.SwitchStatus;
                 if (_activeProfile.IsInjected)
                 {
+                    if (!_activeProfile.SupportsProfileControl)
+                        return "This loader does not support handover. Use the matching launcher and bootstrap with a fresh injection.";
+                    if (!_activeProfile.LoaderReady) return "Waiting for plugin startup and its automatic retry to finish.";
                     if (_activeProfile.LiveActivityId != _activeActivity.Id)
                         return _activeProfile.Name + " is running " + _activeProfile.LiveActivityName +
-                               ". Open that tab to eject before switching activities.";
-                    return "Running this activity. Selection changes apply to the next injection.";
+                               ". Reinject moves this character to the selected activity.";
+                    return "Running this activity. Reinject applies your staged plugin choices.";
                 }
                 return "Choose the plugins for " + _activeProfile.Name + ", then Inject.";
             }
@@ -200,7 +205,8 @@ namespace AOSharp
 
         private bool HasLiveActivity(Activity activity)
         {
-            return Profiles.Any(profile => profile.IsInjected && profile.LiveActivityId == activity.Id);
+            return Profiles.Any(profile => (profile.IsInjected && profile.LiveActivityId == activity.Id) ||
+                profile.PendingActivityId == activity.Id);
         }
 
         private string ActivityNameError(string name, Activity current = null)
@@ -328,7 +334,7 @@ namespace AOSharp
 
         private static ActivityState ProfileActivityState(Profile profile)
         {
-            if (!profile.IsActive || profile.LoaderDisconnected || profile.PluginStatuses.Count == 0)
+            if (profile.IsSwitching || profile.RequiresRestart || (profile.IsInjected && !profile.IsRuntimeCurrent) || !profile.IsActive || profile.LoaderDisconnected || profile.PluginStatuses.Count == 0)
                 return ActivityState.Unknown;
             if (profile.PluginStatuses.Values.All(status => status.State == PluginLoadState.Failed))
                 return ActivityState.Failed;
@@ -339,6 +345,8 @@ namespace AOSharp
 
         private static string ProfileActivityDetail(Profile profile, ActivityState state)
         {
+            if (profile.IsSwitching || profile.RequiresRestart) return profile.SwitchStatus;
+            if (profile.IsInjected && !profile.IsRuntimeCurrent) return "Game client changed; old result uncertain";
             if (!profile.IsActive) return "Client no longer detected; result uncertain";
             if (profile.LoaderDisconnected) return "Loader connection lost; result uncertain";
             if (state == ActivityState.Normal) return "All selected plugins reported initialization";
@@ -360,7 +368,7 @@ namespace AOSharp
                 // Keep missing clients in the summary: disappearing is uncertain, not a clean success.
                 // Only actual runtime ownership/results participate, never staged plugin selections.
                 var participants = Profiles.Where(profile => profile.StatusActivityId == activity.Id ||
-                    profile.LiveActivityId == activity.Id)
+                    profile.LiveActivityId == activity.Id || profile.PendingActivityId == activity.Id)
                     .Select(profile => new { Profile = profile, State = ProfileActivityState(profile) }).ToArray();
                 ActivityState state = participants.Length == 0 ? ActivityState.Neutral :
                     participants.All(result => result.State == ActivityState.Normal) ? ActivityState.Normal :
@@ -600,6 +608,8 @@ namespace AOSharp
             OnPropertyChanged(nameof(HasProfileSelected));
             OnPropertyChanged(nameof(CanInject));
             OnPropertyChanged(nameof(CanEject));
+            OnPropertyChanged(nameof(CanReinject));
+            OnPropertyChanged(nameof(CanReinjectAll));
             OnPropertyChanged(nameof(InjectionHint));
         }
 
@@ -614,6 +624,7 @@ namespace AOSharp
             {
                 profile.PropertyChanged -= Profile_PropertyChanged;
                 profile.PluginStatusesChanged -= Profile_PluginStatusesChanged;
+                profile.ProfileCommandRequested -= Profile_CommandRequested;
                 _observedProfiles.Remove(profile);
             }
             foreach (Profile profile in Profiles)
@@ -621,6 +632,7 @@ namespace AOSharp
                 {
                     profile.PropertyChanged += Profile_PropertyChanged;
                     profile.PluginStatusesChanged += Profile_PluginStatusesChanged;
+                    profile.ProfileCommandRequested += Profile_CommandRequested;
                 }
             QueueTabStatusRefresh();
         }
@@ -634,10 +646,10 @@ namespace AOSharp
 
         private void Profile_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (ReferenceEquals(sender, _activeProfile))
-                RefreshRuntimeControls();
+            RefreshRuntimeControls();
             if (e.PropertyName == nameof(Profile.IsActive) || e.PropertyName == nameof(Profile.IsInjected) ||
-                e.PropertyName == nameof(Profile.LiveActivityId))
+                e.PropertyName == nameof(Profile.LiveActivityId) || e.PropertyName == nameof(Profile.IsSwitching) ||
+                e.PropertyName == nameof(Profile.PendingActivityId) || e.PropertyName == nameof(Profile.RequiresRestart))
                 QueueTabStatusRefresh();
         }
 
@@ -835,7 +847,7 @@ namespace AOSharp
         {
             if (_activeActivity == null) return;
             Activity activity = _activeActivity;
-            var profiles = Profiles.Where(profile => profile.IsActive && !profile.IsInjected).ToArray();
+            var profiles = Profiles.Where(profile => profile.CanStartInjection).ToArray();
             var failures = new List<string>();
             foreach (Profile profile in profiles)
             {
@@ -853,7 +865,7 @@ namespace AOSharp
             if (_activeActivity == null) return;
             string activityId = _activeActivity.Id;
             var profiles = Profiles.Where(profile => profile.IsActive && profile.IsInjected &&
-                profile.LiveActivityId == activityId).ToArray();
+                profile.LiveActivityId == activityId && !profile.IsSwitching && !profile.RequiresRestart).ToArray();
             var failures = new List<string>();
             foreach (Profile profile in profiles)
             {
@@ -992,6 +1004,8 @@ namespace AOSharp
         protected override void OnClosed(EventArgs e)
         {
             _closed = true;
+            _switchLifetime.Cancel();
+            CancelWaitingSwitches();
             if (_trayIcon != null)
             {
                 _trayIcon.Visible = false;
@@ -1004,6 +1018,7 @@ namespace AOSharp
             {
                 profile.PropertyChanged -= Profile_PropertyChanged;
                 profile.PluginStatusesChanged -= Profile_PluginStatusesChanged;
+                profile.ProfileCommandRequested -= Profile_CommandRequested;
             }
             _observedProfiles.Clear();
             base.OnClosed(e);

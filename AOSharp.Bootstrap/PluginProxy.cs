@@ -66,6 +66,8 @@ namespace AOSharp.Bootstrap
     public class PluginProxy : MarshalByRefObject
     {
         private static CoreDelegates _coreDelegates;
+        private MethodInfo _writeControlText;
+        public void WriteControlText(string text) => _writeControlText?.Invoke(null, new object[] { text, ChatColor.LightBlue });
         private PropertyInfo _localPlayerProperty;
         private PropertyInfo _isZoningProperty;
 
@@ -158,6 +160,9 @@ namespace AOSharp.Bootstrap
         {
             //Load main assembly
             var assembly = Assembly.LoadFile(assemblyPath);
+
+            _writeControlText = assembly.GetType("AOSharp.Core.UI.Chat", true)
+                .GetMethod("WriteLine", new[] { typeof(string), typeof(ChatColor) });
 
             //Load references
             foreach (var reference in assembly.GetReferencedAssemblies())

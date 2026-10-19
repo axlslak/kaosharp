@@ -16,6 +16,17 @@ namespace AOSharp.Bootstrap.IPC
         private IDictionary<int, IPCAsyncResult> _pendingTransactions = new ConcurrentDictionary<int, IPCAsyncResult>();
         private NamedPipeClientStream _client;
         private byte[] _buffer = new byte[ushort.MaxValue];
+        private readonly object _sendLock = new object();
+        private int _disconnected;
+
+        private void NotifyDisconnected()
+        {
+            if (Interlocked.Exchange(ref _disconnected, 1) == 0)
+            {
+                try { _client.Close(); } catch { }
+                OnDisconnected?.Invoke(this);
+            }
+        }
         private int _nextTransactionId = 0;
 
         public IPCClient(string name)
@@ -61,61 +72,49 @@ namespace AOSharp.Bootstrap.IPC
             }
             catch (Exception)
             {
-                if (OnDisconnected != null)
-                    OnDisconnected(this);
+                NotifyDisconnected();
             }
         }
 
         public void ReadCallback(IAsyncResult result)
         {
-            int bytesRead;
-
             try
             {
-                bytesRead = _client.EndRead(result);
-
-                if(bytesRead == 0)
-                    throw new IOException("bytesRead == 0");
-            }
-            catch (Exception ex) when (ex is IOException || ex is ObjectDisposedException)
-            {
-                if (OnDisconnected != null)
-                    OnDisconnected(this);
-
-                return;
-            }
-
-            byte opCode = _buffer[0];
-
-            if (_callbacks.ContainsKey(opCode))
-            {
-                IPCCallback callback = _callbacks[opCode];
-                IPCMessage message = (IPCMessage)Activator.CreateInstance(callback.Type);
-                message.Deserialize(_buffer);
-
-                if(message is IPCResponseMessage response)
+                int bytesRead = _client.EndRead(result);
+                if (bytesRead == 0 || !_client.IsMessageComplete)
+                    throw new IOException("Incomplete or oversized IPC message.");
+                if (_callbacks.TryGetValue(_buffer[0], out IPCCallback callback))
                 {
-                    if(_pendingTransactions.ContainsKey(response.TransactionId))
+                    IPCMessage message = (IPCMessage)Activator.CreateInstance(callback.Type);
+                    message.Deserialize(_buffer, bytesRead);
+                    if (message is IPCResponseMessage response && _pendingTransactions.TryGetValue(response.TransactionId, out IPCAsyncResult pending))
                     {
-                        _pendingTransactions[response.TransactionId].Response = response;
-                        _pendingTransactions[response.TransactionId].Set();
+                        pending.Response = response;
+                        pending.Set();
                         _pendingTransactions.Remove(response.TransactionId);
                     }
+                    callback.Callback?.Invoke(this, message);
                 }
-
-                if (callback.Callback != null)
-                    callback.Callback(this, message);
+                BeginRead();
             }
-
-            BeginRead();
+            catch (Exception)
+            {
+                // A malformed message or closed pipe must not escape an async callback.
+                NotifyDisconnected();
+            }
         }
 
         public void Send(IPCMessage message)
         {
-            using (BinaryWriter writer = new BinaryWriter(_client, Encoding.Default, true))
+            byte[] data = message.Serialize();
+            if (data.Length > ushort.MaxValue) throw new InvalidDataException("IPC message is too large.");
+            lock (_sendLock)
             {
-                writer.Write(message.Serialize());
-                writer.Flush();
+                using (BinaryWriter writer = new BinaryWriter(_client, Encoding.Default, true))
+                {
+                    writer.Write(data);
+                    writer.Flush();
+                }
             }
         }
 

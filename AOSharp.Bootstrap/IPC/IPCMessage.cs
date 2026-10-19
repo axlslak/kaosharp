@@ -29,7 +29,12 @@ namespace AOSharp.Bootstrap.IPC
 
         public void Deserialize(byte[] data)
         {
-            using (MemoryStream stream = new MemoryStream(data))
+            Deserialize(data, data.Length);
+        }
+
+        public void Deserialize(byte[] data, int length)
+        {
+            using (MemoryStream stream = new MemoryStream(data, 0, length, false))
             {
                 using (BinaryReader reader = new BinaryReader(stream))
                 {

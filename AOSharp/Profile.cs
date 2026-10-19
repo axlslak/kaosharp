@@ -13,7 +13,7 @@ using Serilog;
 namespace AOSharp
 {
     // One runtime object per character, shared by every activity tab.
-    public class Profile : INotifyPropertyChanged
+    public partial class Profile : INotifyPropertyChanged
     {
         public string Name { get; set; }
 
@@ -68,6 +68,7 @@ namespace AOSharp
 
         public void UpdateActivityName(string activityId, string name)
         {
+            if (PendingActivityId == activityId) _pendingActivityName = name;
             // Rename the display label only; do not switch or reload a live injection.
             if (!string.IsNullOrEmpty(activityId) && LiveActivityId == activityId)
             {
@@ -84,7 +85,7 @@ namespace AOSharp
         public bool Inject(IEnumerable<string> plugins, string activityId, string activityName)
         {
             // All tabs share this guard; staged selections never change a live injection.
-            if (!IsActive || Process == null || IsInjected || _ipcClient != null)
+            if (!CanStartInjection || _ipcClient != null)
                 return false;
 
             string[] paths = plugins.ToArray();
@@ -97,29 +98,30 @@ namespace AOSharp
             IPCClient pipe = null;
             try
             {
+                ResetControlSession();
                 RemoteHooking.Inject(Process.Id, "AOSharp.Bootstrap.dll", string.Empty, Process.Id.ToString(CultureInfo.InvariantCulture));
                 pipe = new IPCClient(Process.Id.ToString());
                 _ipcClient = pipe;
+                RegisterControlCallbacks(pipe);
                 pipe.RegisterCallback((byte)HookOpCode.PluginStatus, typeof(PluginStatusMessage), (sender, message) =>
                 {
-                    Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                    PostToUI(() =>
                     {
-                        if (_ipcClient == pipe) SetPluginStatus((PluginStatusMessage)message);
-                    }));
+                        var status = (PluginStatusMessage)message;
+                        if (_ipcClient == pipe && status.OperationId == _statusOperationId) SetPluginStatus(status);
+                    });
                 });
-                pipe.OnDisconnected += disconnected =>
+                pipe.OnDisconnected += disconnected => PostToUI(() =>
                 {
-                    Application.Current.Dispatcher.BeginInvoke(new Action(() =>
-                    {
-                        if (_ipcClient != pipe) return;
-                        LoaderDisconnected = true;
-                        _ipcClient = null;
-                        SetLiveActivity(null, null);
-                        IsInjected = false;
-                        foreach (string path in paths)
-                            SetPluginStatus(new PluginStatusMessage { Path = path, State = PluginLoadState.Failed, Detail = "Loader disconnected" });
-                    }));
-                };
+                    if (_ipcClient != pipe) return;
+                    ControlDisconnected();
+                    LoaderDisconnected = true;
+                    _ipcClient = null;
+                    SetLiveActivity(null, null);
+                    IsInjected = false;
+                    foreach (string path in PluginStatuses.Keys.ToArray())
+                        SetPluginStatus(new PluginStatusMessage { Path = path, State = PluginLoadState.Failed, Detail = "Loader disconnected" });
+                });
                 pipe.Connect();
                 pipe.Send(new LoadAssemblyMessage { Assemblies = paths });
                 SetLiveActivity(activityId, activityName);
@@ -141,11 +143,13 @@ namespace AOSharp
 
         public void Eject(string activityId)
         {
-            if (_ipcClient == null || LiveActivityId != activityId)
+            if (_ipcClient == null || LiveActivityId != activityId || IsSwitching || RequiresRestart)
                 return;
 
             // Breaking the pipe unloads the same bootstrap/plugin domain as before.
             IPCClient pipe = _ipcClient;
+            LoaderReady = false;
+            SupportsProfileControl = false;
             _ipcClient = null;
             SetLiveActivity(null, null);
             IsInjected = false;

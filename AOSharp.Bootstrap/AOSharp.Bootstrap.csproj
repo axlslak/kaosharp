@@ -97,6 +97,8 @@
     <Compile Include="IPC\Messages\LoadAssemblyMessage.cs" />
     <Compile Include="IPC\Messages\PluginStatusMessage.cs" />
     <Compile Include="Main.cs" />
+    <Compile Include="Main.ProfileControl.cs" />
+    <Compile Include="IPC\Messages\ProfileControlMessage.cs" />
     <Compile Include="PluginProxy.cs" />
     <Compile Include="ProcessChatInputPatcher.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

@@ -15,7 +15,7 @@ using System.Diagnostics;
 namespace AOSharp.Bootstrap
 {
     [Serializable]
-    public class Main : IEntryPoint
+    public partial class Main : IEntryPoint
     {
         private IPCServer _ipcPipe;
         private AppDomain _pluginAppDomain;
@@ -27,7 +27,7 @@ namespace AOSharp.Bootstrap
         private volatile bool _exiting = false;
         private string[] _pendingAssemblies;
         private string[] _assemblies = new string[0];
-        private readonly ConcurrentQueue<PluginStatusMessage> _statusQueue = new ConcurrentQueue<PluginStatusMessage>();
+        private readonly ConcurrentQueue<IPCMessage> _statusQueue = new ConcurrentQueue<IPCMessage>();
         private readonly Stopwatch _retryDelay = new Stopwatch();
         private bool _retryUsed;
         private bool _resultsReported;
@@ -53,6 +53,7 @@ namespace AOSharp.Bootstrap
             _ipcPipe.OnConnected = OnIPCClientConnected;
             _ipcPipe.OnDisconnected = OnIPCClientDisconnected;
             _ipcPipe.RegisterCallback((byte)HookOpCode.LoadAssembly, typeof(LoadAssemblyMessage), OnAssembliesChanged);
+            _ipcPipe.RegisterCallback((byte)HookOpCode.ProfileControl, typeof(ProfileControlMessage), OnProfileControl);
             _ipcPipe.Start();
         }
 
@@ -65,7 +66,7 @@ namespace AOSharp.Bootstrap
             // Pipe writes run on the bootstrap worker, never on the game thread.
             while (!_unloadEvent.WaitOne(100))
             {
-                while (_statusQueue.TryDequeue(out PluginStatusMessage status))
+                while (_statusQueue.TryDequeue(out IPCMessage status))
                 {
                     try { _ipcPipe.Send(status); }
                     catch (Exception ex)
@@ -83,6 +84,8 @@ namespace AOSharp.Bootstrap
             _connectEvent.Set();
 
             SetupHooks();
+            _statusQueue.Enqueue(new ProfileControlMessage { Kind = ProfileControlKind.Hello,
+                OperationId = ProfileControlMessage.ProtocolVersion });
         }
 
         private void OnIPCClientDisconnected(IPCServer pipe)
@@ -100,7 +103,7 @@ namespace AOSharp.Bootstrap
 
         private void Report(string path, PluginLoadState state, string detail)
         {
-            _statusQueue.Enqueue(new PluginStatusMessage { Path = path, State = state, Detail = detail });
+            _statusQueue.Enqueue(new PluginStatusMessage { Path = path, State = state, Detail = detail, OperationId = _operationId });
         }
 
         private void ScheduleRetry()
@@ -156,17 +159,21 @@ namespace AOSharp.Bootstrap
             catch (Exception ex) { failure = ex; }
             if (failure == null) return true;
 
+            _cleanupFailed = true;
+            _retryDelay.Reset();
+            _resultsReported = true;
             Log.Error(failure, "Plugin cleanup failed; automatic retry stopped");
             foreach (string path in _assemblies)
-                Report(path, PluginLoadState.Failed, "Cleanup failed; eject before retrying: " + failure);
+                Report(path, PluginLoadState.Failed, "Cleanup failed; restart this game client: " + failure);
             return false;
         }
 
         private void UpdatePluginLoading()
         {
             string[] requested = Interlocked.Exchange(ref _pendingAssemblies, null);
-            if (requested != null)
+            if (requested != null && !_initialRequestReceived)
             {
+                _initialRequestReceived = true;
                 _retryDelay.Reset();
                 _retryUsed = false;
                 if (!UnloadPluginEnvironment()) return;
@@ -399,8 +406,11 @@ namespace AOSharp.Bootstrap
         public IntPtr GetCommand_Hook(IntPtr pThis, IntPtr pCmdText, bool unk)
         {
             IntPtr result;
-            if ((result = CommandInterpreter_c.GetCommand(pThis, pCmdText, unk)) == IntPtr.Zero && unk && _pluginProxy != null)
-                _pluginProxy?.UnknownChatCommand(_lastChatInputWindowPtr, _lastChatInput);
+            if ((result = CommandInterpreter_c.GetCommand(pThis, pCmdText, unk)) == IntPtr.Zero && unk)
+            {
+                if (!TryProfileCommand(_lastChatInput))
+                    _pluginProxy?.UnknownChatCommand(_lastChatInputWindowPtr, _lastChatInput);
+            }
 
             return result;
         }
@@ -617,10 +627,23 @@ namespace AOSharp.Bootstrap
                 {
                     try
                     {
+                        UpdateProfileControl();
                         UpdatePluginLoading();
+                        CompleteProfileControl();
+                        FlushControlReplies();
                         if (_environmentReady) _pluginProxy?.EarlyUpdate(deltaTime);
                     }
-                    catch (Exception ex) { Log.Error(ex, "Plugin startup/update failed"); }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Plugin startup/update failed");
+                        if (!_resultsReported)
+                        {
+                            _resultsReported = true;
+                            foreach (string path in _assemblies) Report(path, PluginLoadState.Failed, ex.Message);
+                            ScheduleRetry();
+                        }
+                        CompleteProfileControl();
+                    }
 
                     // The original engine must run even when plugin setup fails.
                     N3EngineClientAnarchy_t.RunEngine(pThis, deltaTime);

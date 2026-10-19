@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 using System.IO.Pipes;
+using System.Threading;
 
 namespace AOSharp.Bootstrap.IPC
 {
@@ -30,6 +31,14 @@ namespace AOSharp.Bootstrap.IPC
         private Dictionary<byte, IPCCallback> _callbacks = new Dictionary<byte, IPCCallback>();
         private NamedPipeServerStream _server;
         private byte[] _buffer = new byte[ushort.MaxValue];
+        private readonly object _sendLock = new object();
+        private int _disconnected;
+
+        private void NotifyDisconnected()
+        {
+            if (Interlocked.Exchange(ref _disconnected, 1) == 0)
+                OnDisconnected?.Invoke(this);
+        }
 
         public IPCServer(string pipeName)
         {
@@ -68,15 +77,14 @@ namespace AOSharp.Bootstrap.IPC
             }
             catch (Exception)
             {
-                if (OnDisconnected != null)
-                    OnDisconnected(this);
+                NotifyDisconnected();
             }
         }
 
         private void WaitForConnectionCallback(IAsyncResult result)
         {
-            //Accept the connection
-            _server.EndWaitForConnection(result);
+            try { _server.EndWaitForConnection(result); }
+            catch (Exception) { NotifyDisconnected(); return; }
 
             //Notify subscribers that we have a new client connected
             if (OnConnected != null)
@@ -88,48 +96,39 @@ namespace AOSharp.Bootstrap.IPC
 
         private void ReadCallback(IAsyncResult result)
         {
-            int bytesRead;
-
             try
             {
-                bytesRead = _server.EndRead(result);
-
-                if (bytesRead == 0 && OnDisconnected != null)
+                int bytesRead = _server.EndRead(result);
+                if (bytesRead == 0 || !_server.IsMessageComplete)
+                    throw new IOException("Incomplete or oversized IPC message.");
+                if (_callbacks.TryGetValue(_buffer[0], out IPCCallback callback))
                 {
-                    OnDisconnected(this);
-                    return;
+                    IPCMessage message = (IPCMessage)Activator.CreateInstance(callback.Type);
+                    message.Deserialize(_buffer, bytesRead);
+                    callback.Callback?.Invoke(this, message);
                 }
+                BeginRead();
             }
-            catch(IOException)
+            catch (Exception)
             {
-                if (OnDisconnected != null)
-                    OnDisconnected(this);
-
-                return;
+                // A malformed message or closed pipe must not escape an async callback.
+                NotifyDisconnected();
             }
-
-            byte opCode = _buffer[0];
-
-            if(_callbacks.ContainsKey(opCode))
-            {
-                IPCCallback callback = _callbacks[opCode];
-                IPCMessage message = (IPCMessage)Activator.CreateInstance(callback.Type);
-                message.Deserialize(_buffer);
-
-                if (callback.Callback != null)
-                    callback.Callback(this, message);
-            }
-
-            BeginRead();
         }
 
         public void Send(IPCMessage message)
         {
-            using (BinaryWriter writer = new BinaryWriter(_server, Encoding.Default, true))
+            byte[] data = message.Serialize();
+            if (data.Length > ushort.MaxValue) throw new InvalidDataException("IPC message is too large.");
+            lock (_sendLock)
             {
-                writer.Write(message.Serialize());
-                writer.Flush();
+                using (BinaryWriter writer = new BinaryWriter(_server, Encoding.Default, true))
+                {
+                    writer.Write(data);
+                    writer.Flush();
+                }
             }
         }
+
     }
 }
