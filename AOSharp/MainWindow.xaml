@@ -6,7 +6,7 @@
         AllowDrop="True"
         PreviewDragOver="PluginFiles_DragOver"
         PreviewDrop="PluginFiles_Drop"
-        Title="KAO# 2.7.16"
+        Title="KAO# 2.7.17"
         Background="{DynamicResource WindowBackgroundBrush}"
         Foreground="{DynamicResource TextBrush}"
         TitleForeground="{DynamicResource TextBrush}"
@@ -114,6 +114,11 @@
         </Grid.RowDefinitions>
         <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <TabControl x:Name="WorkspaceTabs" Margin="0,0,0,5" Padding="0" BorderThickness="0"
+                        Controls:TabControlHelper.Underlined="SelectedTabItem"
+                        Controls:TabControlHelper.UnderlineBrush="Transparent"
+                        Controls:TabControlHelper.UnderlineMouseOverBrush="Transparent"
+                        Controls:TabControlHelper.UnderlineSelectedBrush="{DynamicResource WindowsSelectionTextBrush}"
+                        Controls:TabControlHelper.UnderlineMouseOverSelectedBrush="{DynamicResource WindowsSelectionTextBrush}"
                         SelectionChanged="WorkspaceTabs_SelectionChanged">
                 <TabItem x:Name="LibraryTab" Header="Plugin list" Padding="14,5"/>
                 <TabItem x:Name="NewActivityTab" Padding="0" IsTabStop="False" HeaderTemplate="{x:Null}">

@@ -4,9 +4,11 @@ Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-k
 
 This tree uses the classic Windows/.NET Framework 4.8 WPF launcher and EasyHook. It is not the separate .NET8 launcher.
 
-Version **2.7.16** starts on **Plugin list**, your shared plugin library. Add DLLs together with Add Plugin or drag and drop. Use **+** to create an activity column, type its name in the header and press Enter, then tick the plugins available in that activity. Save and open its new tab to choose plugins for each character and inject.
+Version **2.7.17** starts on **Plugin list**, your shared plugin library. Add DLLs together with Add Plugin or drag and drop. Use **+** to create an activity column, type its name in the header and press Enter, then tick the plugins available in that activity. Save and open its new tab to choose plugins for each character and inject.
 
 Different characters can run different activities. Choices can be prepared while plugins are running; they apply to the next injection. Switching tabs leaves running clients alone. Eject All affects the current activity only. Initialization status, the one clean retry, and saved window geometry remain available.
+
+The selected tab has a Windows-coloured fill, matching text and a persistent underline, including when its activity is empty or the window loses focus. This marks the page being viewed. Running activity ownership stays with each character's activity label and status.
 
 Setup is stored in `launcher.json` beside the launcher. On first use of this format, registered DLLs are recovered from the existing `config.json`; current library entries and activities are kept. Save retains the recovered catalogue. Old character selections and named profiles are not imported, and the older files are not changed. Keep your DLLs in their intended folders; registration references those files.
 

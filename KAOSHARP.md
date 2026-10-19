@@ -1,4 +1,4 @@
-# KAOSharp 2.7.16
+# KAOSharp 2.7.17
 
 Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-knows-best/aosharp), initially imported from commit `d55eb12b5a763e5ed65851e69c50343de6c6d73c`. Version2.7.11 integrates the net source changes from [Knows Modded AOSharp](https://gitlab.com/aosharp-plus/aosp.knows-aosharp-mods), master commit `5eb65c1053748dad82d16490aca3eaaec01432dc`, also present at [sdts-group/knows-aosharp-mods](https://gitlab.com/sdts-group/knows-aosharp-mods). All upstream authorship and notices remain intact.
 
@@ -89,3 +89,11 @@ Register the Windows-supplied resource dictionary with the pinned toolkit so its
 Both launcher windows, grid/header/editor/selection surfaces and toolkit brush roles follow these resources. Fixed red/green/orange row text is replaced by status words and typographic emphasis; initialized rows are semibold, failed/missing-file rows bold, loading italic, injected characters bold with their running activity still shown. Missing DLLs have an explicit tooltip. Selection uses its matched Windows text/background pair. Tab captions use ordinary readable text and emphasize the selected tab; the + header keeps its button content.
 
 Exact title/application/injector/bootstrap file and informational versions2.7.16; assembly identities, dependencies, configuration and activity/injection behavior retained. Source/diff/XML/resource/ABI/publication review only. No builds/tests/releases/CI; Windows rendering, live colour-change notifications and injection remain unverified by this source-only delivery.
+
+## 2.7.17 — clearly selected navigation tabs
+
+Retain the existing WPF TabControl/TabItem and MahApps1.6.5 templates. Selected tabs use the Windows selection background/text pair and the toolkit's built-in SelectedTabItem underline. Hover over another tab does not imitate that selection marker; selection stays visible when focus moves or an activity has no plugins. Header text follows its TabItem foreground, and the selected weight uses the ControlsHelper.HeaderFontWeight property actually consumed by this toolkit version.
+
+Selection marks the page being viewed; it does not switch an injected character's activity or represent runtime ownership. Existing + column-header naming, library startup, horizontal scrolling, staged selections and all injection/configuration behavior remain. No custom tab renderer, new package, close/drag/shrink behavior or automatic runtime tab colouring introduced.
+
+Exact title/application/injector/bootstrap file/informational versions2.7.17, binding identities/dependencies unchanged. Source/diff/XML/pinned template/trigger and publication review only; no builds/tests/releases/CI or post-change Windows rendering confirmation.
