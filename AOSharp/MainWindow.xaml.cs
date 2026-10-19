@@ -22,6 +22,8 @@ using MahApps.Metro.Controls.Dialogs;
 using Microsoft.Win32;
 using Serilog;
 using Activity = AOSharp.Models.Activity;
+using Drawing = System.Drawing;
+using Forms = System.Windows.Forms;
 
 namespace AOSharp
 {
@@ -46,6 +48,12 @@ namespace AOSharp
         private readonly Dictionary<Activity, DataGridTemplateColumn> _activityColumns =
             new Dictionary<Activity, DataGridTemplateColumn>();
         private bool _activityDialogOpen;
+        private Forms.NotifyIcon _trayIcon;
+        private Drawing.Icon _trayImage;
+        private Forms.ToolStripMenuItem _trayPreferenceItem;
+        private WindowState _restoreWindowState = WindowState.Normal;
+
+        public bool MinimizeToTray => Config.MinimizeToTray;
 
         public ObservableCollection<KeyValuePair<string, PluginModel>> LibraryPlugins { get; } =
             new ObservableCollection<KeyValuePair<string, PluginModel>>();
@@ -124,6 +132,7 @@ namespace AOSharp
             WorkspaceTabs.SelectedItem = LibraryTab;
             RefreshLibraryPlugins();
             SelectActivity(null);
+            ((App)Application.Current).RegisterActivationHandler(RestoreFromTray);
         }
 
         private void WorkspaceTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -170,6 +179,12 @@ namespace AOSharp
             var menu = new ContextMenu();
             menu.Items.Add(rename);
             menu.Items.Add(delete);
+            menu.Items.Add(new Separator());
+            var trayPreference = new MenuItem { Header = "Minimize to tray", IsCheckable = true };
+            trayPreference.SetBinding(MenuItem.IsCheckedProperty,
+                new Binding(nameof(MinimizeToTray)) { Source = this, Mode = BindingMode.OneWay });
+            trayPreference.Click += MinimizeToTray_Click;
+            menu.Items.Add(trayPreference);
             menu.Opened += (sender, args) =>
             {
                 bool running = HasLiveActivity(activity);
@@ -830,6 +845,103 @@ namespace AOSharp
             new TweaksWindow { Owner = this }.ShowDialog();
         }
 
+        private async void MinimizeToTray_Click(object sender, RoutedEventArgs e)
+        {
+            await SetMinimizeToTrayAsync(((MenuItem)sender).IsChecked);
+        }
+
+        private async Task SetMinimizeToTrayAsync(bool enabled)
+        {
+            if (Config.MinimizeToTray == enabled) return;
+            Config.MinimizeToTray = enabled;
+            OnPropertyChanged(nameof(MinimizeToTray));
+            if (_trayPreferenceItem != null) _trayPreferenceItem.Checked = enabled;
+            if (!enabled && !IsVisible) RestoreFromTray();
+            await SaveConfigurationAsync();
+        }
+
+        private void EnsureTrayIcon()
+        {
+            if (_trayIcon != null) return;
+            var resource = Application.GetResourceStream(new Uri("pack://application:,,,/Assets/eye.ico"));
+            using (var stream = resource.Stream)
+            using (var image = new Drawing.Icon(stream))
+                _trayImage = (Drawing.Icon)image.Clone();
+
+            var menu = new Forms.ContextMenuStrip();
+            try
+            {
+                menu.Items.Add("Show KAO#", null, (sender, args) => RestoreFromTray());
+                _trayPreferenceItem = new Forms.ToolStripMenuItem("Minimize to tray")
+                {
+                    CheckOnClick = true, Checked = MinimizeToTray
+                };
+                _trayPreferenceItem.Click += async (sender, args) =>
+                    await SetMinimizeToTrayAsync(_trayPreferenceItem.Checked);
+                menu.Items.Add(_trayPreferenceItem);
+                menu.Items.Add(new Forms.ToolStripSeparator());
+                menu.Items.Add("Exit", null, (sender, args) =>
+                {
+                    RestoreFromTray();
+                    Close();
+                });
+                _trayIcon = new Forms.NotifyIcon
+                {
+                    Icon = _trayImage, Text = "KAO#", ContextMenuStrip = menu
+                };
+                _trayIcon.MouseDoubleClick += (sender, args) =>
+                {
+                    if (args.Button == Forms.MouseButtons.Left) RestoreFromTray();
+                };
+            }
+            catch
+            {
+                _trayIcon?.Dispose();
+                _trayIcon = null;
+                menu.Dispose();
+                _trayPreferenceItem = null;
+                _trayImage.Dispose();
+                _trayImage = null;
+                throw;
+            }
+        }
+
+        protected override void OnStateChanged(EventArgs e)
+        {
+            base.OnStateChanged(e);
+            if (_closed) return;
+            if (WindowState != WindowState.Minimized)
+            {
+                _restoreWindowState = WindowState;
+                return;
+            }
+            if (!MinimizeToTray) return;
+            try
+            {
+                EnsureTrayIcon();
+                _trayIcon.Visible = true;
+                Hide();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Could not minimize to tray");
+                if (_trayIcon != null) _trayIcon.Visible = false;
+                Show();
+                WindowState = _restoreWindowState;
+                MessageBox.Show(this, "Could not minimize to tray. " + ex.Message,
+                    "KAO#", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        internal void RestoreFromTray()
+        {
+            if (_closed) return;
+            Show();
+            if (WindowState == WindowState.Minimized) WindowState = _restoreWindowState;
+            Activate();
+            if (_trayIcon != null) _trayIcon.Visible = false;
+        }
+
         protected override void OnClosing(CancelEventArgs e)
         {
             // Retry a failed write before offering to discard changes still held in memory.
@@ -852,6 +964,13 @@ namespace AOSharp
         protected override void OnClosed(EventArgs e)
         {
             _closed = true;
+            if (_trayIcon != null)
+            {
+                _trayIcon.Visible = false;
+                _trayIcon.ContextMenuStrip?.Dispose();
+                _trayIcon.Dispose();
+            }
+            _trayImage?.Dispose();
             Profiles.CollectionChanged -= Profiles_CollectionChanged;
             foreach (Profile profile in _observedProfiles)
             {

@@ -6,12 +6,20 @@
         AllowDrop="True"
         PreviewDragOver="PluginFiles_DragOver"
         PreviewDrop="PluginFiles_Drop"
-        Title="KAO# 2.7.20"
+        Title="KAO# 2.7.21"
+        Icon="Assets/eye.ico" ShowIconOnTitleBar="True"
+        ShowSystemMenuOnRightClick="False"
         Background="{DynamicResource WindowBackgroundBrush}"
         Foreground="{DynamicResource TextBrush}"
         TitleForeground="{DynamicResource TextBrush}"
         OverrideDefaultWindowCommandsBrush="{DynamicResource TextBrush}"
         Width="1000" Height="500" MinWidth="1000" MinHeight="450">
+    <Window.ContextMenu>
+        <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+            <MenuItem Header="Minimize to tray" IsCheckable="True"
+                      IsChecked="{Binding MinimizeToTray, Mode=OneWay}" Click="MinimizeToTray_Click"/>
+        </ContextMenu>
+    </Window.ContextMenu>
     <Controls:MetroWindow.RightWindowCommands>
         <Controls:WindowCommands>
             <Button ToolTip="Tweaks" Click="TweaksButton_Click">
@@ -181,9 +189,12 @@
                     <DataGridTextColumn Header="Source" Binding="{Binding Value.Path}" SortMemberPath="Value.Path" Width="*" MinWidth="200"/>
                 </DataGrid.Columns>
                 <DataGrid.ContextMenu>
-                    <ContextMenu>
+                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                         <MenuItem Header="Remove selected plugins" Click="RemoveSelectedPlugins_Click"/>
                         <MenuItem Header="Remove All" Click="RemoveAllPlugins_Click"/>
+                        <Separator/>
+                        <MenuItem Header="Minimize to tray" IsCheckable="True"
+                                  IsChecked="{Binding MinimizeToTray, Mode=OneWay}" Click="MinimizeToTray_Click"/>
                     </ContextMenu>
                 </DataGrid.ContextMenu>
                 <DataGrid.RowStyle>

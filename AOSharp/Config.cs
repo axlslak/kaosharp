@@ -18,6 +18,8 @@ namespace AOSharp
         // Persisted on the next normal save, including an intentional Remove All.
         public bool PluginLibraryInitialized { get; set; }
 
+        public bool MinimizeToTray { get; set; }
+
         [JsonIgnore]
         public string LibraryRecoveryError { get; private set; }
 
