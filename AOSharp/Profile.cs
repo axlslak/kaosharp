@@ -64,6 +64,16 @@ namespace AOSharp
             OnPropertyChanged(nameof(LiveActivityName));
         }
 
+        public void UpdateActivityName(string activityId, string name)
+        {
+            // Rename the display label only; do not switch or reload a live injection.
+            if (!string.IsNullOrEmpty(activityId) && LiveActivityId == activityId)
+            {
+                LiveActivityName = name;
+                OnPropertyChanged(nameof(LiveActivityName));
+            }
+        }
+
         private void OnPropertyChanged(string name)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

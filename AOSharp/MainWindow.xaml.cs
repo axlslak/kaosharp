@@ -43,6 +43,9 @@ namespace AOSharp
         private readonly HashSet<Profile> _observedProfiles = new HashSet<Profile>();
         private bool _tabStatusRefreshPending;
         private bool _closed;
+        private readonly Dictionary<Activity, DataGridTemplateColumn> _activityColumns =
+            new Dictionary<Activity, DataGridTemplateColumn>();
+        private bool _activityDialogOpen;
 
         public ObservableCollection<KeyValuePair<string, PluginModel>> LibraryPlugins { get; } =
             new ObservableCollection<KeyValuePair<string, PluginModel>>();
@@ -109,7 +112,9 @@ namespace AOSharp
             foreach (Activity activity in Config.Activities)
             {
                 AddActivityTab(activity);
-                LibraryGrid.Columns.Insert(LibraryGrid.Columns.Count - 2, CreateMembershipColumn(activity));
+                DataGridTemplateColumn column = CreateMembershipColumn(activity);
+                _activityColumns.Add(activity, column);
+                LibraryGrid.Columns.Insert(LibraryGrid.Columns.Count - 2, column);
             }
 
             ObserveProfiles();
@@ -152,10 +157,142 @@ namespace AOSharp
 
         private void AddActivityTab(Activity activity)
         {
-            WorkspaceTabs.Items.Insert(WorkspaceTabs.Items.Count - 1,
-                new TabItem { Header = activity.Name, Tag = activity, Padding = new Thickness(14, 5, 14, 5),
-                    Style = (Style)FindResource("ActivityTabStyle") });
+            var tab = new TabItem
+            {
+                Header = activity.Name, Tag = activity, Padding = new Thickness(14, 5, 14, 5),
+                Style = (Style)FindResource("ActivityTabStyle")
+            };
+            var rename = new MenuItem { Header = "_Rename", Tag = activity };
+            rename.Click += RenameActivity_Click;
+            var delete = new MenuItem { Header = "_Delete", Tag = activity };
+            delete.Click += DeleteActivity_Click;
+            ToolTipService.SetShowOnDisabled(delete, true);
+            var menu = new ContextMenu();
+            menu.Items.Add(rename);
+            menu.Items.Add(delete);
+            menu.Opened += (sender, args) =>
+            {
+                bool running = HasLiveActivity(activity);
+                rename.IsEnabled = !_activityDialogOpen;
+                delete.IsEnabled = !_activityDialogOpen && !running;
+                delete.ToolTip = running ? "Eject the characters running this activity before deleting it." :
+                    "Remove this activity and its choices. Keep the shared plugin library.";
+            };
+            tab.ContextMenu = menu;
+            WorkspaceTabs.Items.Insert(WorkspaceTabs.Items.Count - 1, tab);
             QueueTabStatusRefresh();
+        }
+
+        private bool HasLiveActivity(Activity activity)
+        {
+            return Profiles.Any(profile => profile.IsInjected && profile.LiveActivityId == activity.Id);
+        }
+
+        private string ActivityNameError(string name, Activity current = null)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return "Enter an activity name.";
+            if (string.Equals(name, "Plugin list", StringComparison.OrdinalIgnoreCase) || name == "+")
+                return "Choose an activity name other than Plugin list or +.";
+            if (Config.Activities.Any(activity => !ReferenceEquals(activity, current) &&
+                string.Equals(activity.Name, name, StringComparison.OrdinalIgnoreCase)))
+                return "An activity named " + name + " already exists. Choose another name.";
+            return null;
+        }
+
+        private async void RenameActivity_Click(object sender, RoutedEventArgs e)
+        {
+            var activity = (sender as MenuItem)?.Tag as Activity;
+            if (_activityDialogOpen || activity == null || !Config.Activities.Contains(activity)) return;
+            _activityDialogOpen = true;
+            try
+            {
+                var settings = new MetroDialogSettings
+                {
+                    DefaultText = activity.Name, AffirmativeButtonText = "Rename", NegativeButtonText = "Cancel"
+                };
+                while (Config.Activities.Contains(activity))
+                {
+                    string name = await this.ShowInputAsync("Rename activity", "New activity name:", settings);
+                    if (name == null || !Config.Activities.Contains(activity)) return;
+                    name = name.Trim();
+                    string error = ActivityNameError(name, activity);
+                    if (error != null)
+                    {
+                        settings.DefaultText = name;
+                        await this.ShowMessageAsync("Activity name", error);
+                        continue;
+                    }
+                    if (name == activity.Name) return;
+                    // The activity ID and its pool/character choices stay intact.
+                    activity.Name = name;
+                    if (_activityColumns.TryGetValue(activity, out DataGridTemplateColumn column))
+                        column.Header = name;
+                    foreach (Profile profile in Profiles)
+                        profile.UpdateActivityName(activity.Id, name);
+                    SetupMessage = "Activity renamed to " + name + ".";
+                    QueueTabStatusRefresh();
+                    RefreshRuntimeControls();
+                    await SaveConfigurationAsync();
+                    return;
+                }
+            }
+            finally
+            {
+                _activityDialogOpen = false;
+            }
+        }
+
+        private async void DeleteActivity_Click(object sender, RoutedEventArgs e)
+        {
+            var activity = (sender as MenuItem)?.Tag as Activity;
+            if (_activityDialogOpen || activity == null || !Config.Activities.Contains(activity)) return;
+            _activityDialogOpen = true;
+            try
+            {
+                if (HasLiveActivity(activity))
+                {
+                    await this.ShowMessageAsync("Activity is running",
+                        "Eject the characters running this activity before deleting it.");
+                    return;
+                }
+                MessageDialogResult result = await this.ShowMessageAsync("Delete activity",
+                    "Delete " + activity.Name + " and its plugin assignments and character choices?" +
+                    "\n\nThe shared plugin library and DLL files will be kept.",
+                    MessageDialogStyle.AffirmativeAndNegative, new MetroDialogSettings
+                    {
+                        AffirmativeButtonText = "Delete", NegativeButtonText = "Cancel",
+                        DefaultButtonFocus = MessageDialogResult.Negative,
+                        DialogResultOnCancel = MessageDialogResult.Negative
+                    });
+                if (result != MessageDialogResult.Affirmative || !Config.Activities.Contains(activity)) return;
+                // A modal dialog yields to runtime callbacks: check ownership again before removal.
+                if (HasLiveActivity(activity))
+                {
+                    await this.ShowMessageAsync("Activity is running",
+                        "Eject the characters running this activity before deleting it.");
+                    return;
+                }
+                TabItem tab = WorkspaceTabs.Items.OfType<TabItem>()
+                    .FirstOrDefault(item => ReferenceEquals(item.Tag, activity));
+                // Never let removing the selected last activity select + and create a new one.
+                if (tab != null && ReferenceEquals(WorkspaceTabs.SelectedItem, tab))
+                    WorkspaceTabs.SelectedItem = LibraryTab;
+                if (_activityColumns.TryGetValue(activity, out DataGridTemplateColumn column))
+                {
+                    LibraryGrid.Columns.Remove(column);
+                    _activityColumns.Remove(activity);
+                }
+                Config.Activities.Remove(activity);
+                if (tab != null) WorkspaceTabs.Items.Remove(tab);
+                SetupMessage = "Activity deleted. Its plugins remain in Plugin list.";
+                QueueTabStatusRefresh();
+                await SaveConfigurationAsync();
+            }
+            finally
+            {
+                _activityDialogOpen = false;
+            }
         }
 
         private void QueueTabStatusRefresh()
@@ -238,21 +375,10 @@ namespace AOSharp
                 return true;
 
             string name = _activityNameEditor.Text.Trim();
-            if (string.IsNullOrWhiteSpace(name))
+            string error = ActivityNameError(name);
+            if (error != null)
             {
-                SetupMessage = "Enter an activity name in the new column, or press Esc to cancel.";
-                return false;
-            }
-
-            if (string.Equals(name, "Plugin list", StringComparison.OrdinalIgnoreCase) || name == "+")
-            {
-                SetupMessage = "Choose an activity name other than Plugin list or +.";
-                return false;
-            }
-
-            if (Config.Activities.Any(activity => string.Equals(activity.Name, name, StringComparison.OrdinalIgnoreCase)))
-            {
-                SetupMessage = "An activity named " + name + " already exists. Choose another name.";
+                SetupMessage = error;
                 return false;
             }
 
@@ -266,6 +392,7 @@ namespace AOSharp
             Config.Activities.Add(activityToAdd);
             column.Header = name;
             column.CellTemplate = CreateMembershipTemplate(activityToAdd, true);
+            _activityColumns.Add(activityToAdd, column);
             AddActivityTab(activityToAdd);
             SetupMessage = "Tick the plugins available in " + name + ", then open its tab.";
             return true;

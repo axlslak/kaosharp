@@ -1,4 +1,4 @@
-# KAOSharp 2.7.19
+# KAOSharp 2.7.20
 
 Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-knows-best/aosharp), initially imported from commit `d55eb12b5a763e5ed65851e69c50343de6c6d73c`. Version2.7.11 integrates the net source changes from [Knows Modded AOSharp](https://gitlab.com/aosharp-plus/aosp.knows-aosharp-mods), master commit `5eb65c1053748dad82d16490aca3eaaec01432dc`, also present at [sdts-group/knows-aosharp-mods](https://gitlab.com/sdts-group/knows-aosharp-mods). All upstream authorship and notices remain intact.
 
@@ -115,3 +115,11 @@ Subscribe to status/property changes for every discovered character, independent
 Restore green Initialized rows and red Failed/missing-DLL rows. Calculate text shades for actual normal and selected Windows backgrounds, retaining at least4.5:1 text contrast, existing status words, tooltips and emphasis. Compact Initialized/Failed status labels retain the green/red fill even when selected name text needs a subtler shade. Semantic tab/status fills use paired white text on green/firebrick. Windows contrast schemes retain their own surface/text and selection pairs, with explicit status labels. Theme preference refresh updates these resources in place. Ordinary Windows colour inheritance remains.
 
 Exact window/application/injector/bootstrap file/informational versions2.7.19; assembly identities/dependencies, configuration, loading and injection behavior retained. Static source/XML/resource/event-lifecycle/contrast calculations and exact publication review only. No builds, tests, releases, CI or Windows rendering/runtime verification.
+
+## 2.7.20 — rename and delete activity tabs
+
+Right-click an activity tab for Rename or Delete; the target is the clicked activity even when another page is selected. Plugin list and + remain permanent. Rename starts with the current name and shares creation's nonempty/reserved/unique name rules; changing only case is allowed. Preserve the activity ID, plugin pool, character choices and runtime/status ownership. Update its Plugin list column, coloured tab caption and any running-character display label; do not reload or switch injections.
+
+Delete asks before removing the activity and its assignments, with Cancel as default. Keep the global DLL catalogue and files. Disable Delete while any character still owns an injection in that activity, and recheck ownership after the confirmation before removing anything. Select Plugin list before removing the selected activity, including the last one, so + cannot be selected automatically. Deleting an unselected tab leaves the selected page in place. Rename/delete use existing immediate saving and save-error/retry feedback.
+
+Exact title/application/injector/bootstrap file/informational versions2.7.20; assembly identities, dependency versions, configuration format and injection lifecycle retained. Static source/diff/XML/pinned dialog API/event/identity review and exact publication checks only; no builds, tests, releases, CI or Windows runtime confirmation.

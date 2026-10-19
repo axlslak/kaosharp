@@ -6,7 +6,7 @@
         AllowDrop="True"
         PreviewDragOver="PluginFiles_DragOver"
         PreviewDrop="PluginFiles_Drop"
-        Title="KAO# 2.7.19"
+        Title="KAO# 2.7.20"
         Background="{DynamicResource WindowBackgroundBrush}"
         Foreground="{DynamicResource TextBrush}"
         TitleForeground="{DynamicResource TextBrush}"

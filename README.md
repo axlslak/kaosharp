@@ -4,7 +4,7 @@ Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-k
 
 This tree uses the classic Windows/.NET Framework 4.8 WPF launcher and EasyHook. It is not the separate .NET8 launcher.
 
-Version **2.7.19** starts on **Plugin list**, your shared plugin library. Add DLLs together with Add Plugin or drag and drop. Use **+** to create an activity column, type its name in the header and press Enter, then tick the plugins available in that activity. Open its new tab to choose plugins for each character and inject.
+Version **2.7.20** starts on **Plugin list**, your shared plugin library. Add DLLs together with Add Plugin or drag and drop. Use **+** to create an activity column, type its name in the header and press Enter, then tick the plugins available in that activity. Open its new tab to choose plugins for each character and inject. Right-click an activity tab to Rename or Delete it. Renaming keeps its assignments and updates its Plugin list column and running-character label. Deleting asks first and keeps the shared plugin library; eject characters using that activity before deleting it.
 
 Different characters can run different activities. Choices can be prepared while plugins are running; they apply to the next injection. Switching tabs leaves running clients alone. Eject All affects the current activity only. Initialization status, the one clean retry, and saved window geometry remain available.
 
