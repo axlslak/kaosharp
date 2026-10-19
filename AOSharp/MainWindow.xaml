@@ -6,7 +6,7 @@
         AllowDrop="True"
         PreviewDragOver="PluginFiles_DragOver"
         PreviewDrop="PluginFiles_Drop"
-        Title="KAO# 2.7.17"
+        Title="KAO# 2.7.18"
         Background="{DynamicResource WindowBackgroundBrush}"
         Foreground="{DynamicResource TextBrush}"
         TitleForeground="{DynamicResource TextBrush}"
@@ -111,6 +111,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <TabControl x:Name="WorkspaceTabs" Margin="0,0,0,5" Padding="0" BorderThickness="0"
@@ -135,11 +136,8 @@
 
         <DockPanel x:Name="LibraryPanel" Grid.Row="1">
             <DockPanel DockPanel.Dock="Top" Margin="3,3,3,6">
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                    <Button Margin="3" Padding="12,4" Click="ShowAddPluginDialog"
-                            ToolTip="Select DLLs, or drag and drop them anywhere on this window">Add Plugin</Button>
-                    <Button Margin="3" Padding="12,4" Click="SaveSetup_Click">Save</Button>
-                </StackPanel>
+                <Button DockPanel.Dock="Right" Margin="3" Padding="12,4" Click="ShowAddPluginDialog"
+                        ToolTip="Select DLLs, or drag and drop them anywhere on this window">Add Plugin</Button>
                 <TextBlock Text="{Binding SetupMessage}" VerticalAlignment="Center"
                            TextWrapping="Wrap" Margin="3"/>
             </DockPanel>
@@ -205,16 +203,13 @@
             </ListBox>
             <DockPanel Grid.Column="1">
                 <StackPanel DockPanel.Dock="Top">
-                    <DockPanel Margin="3">
-                        <Button DockPanel.Dock="Right" Margin="3" Padding="12,4" Click="SaveSetup_Click">Save</Button>
-                        <StackPanel Orientation="Horizontal">
-                            <Button Margin="3" Padding="12,4" Click="InjectButton_Clicked" IsEnabled="{Binding CanInject}">Inject</Button>
-                            <Button Margin="3" Padding="12,4" Click="EjectButton_Clicked" IsEnabled="{Binding CanEject}">Eject</Button>
-                            <Button Margin="3" Padding="12,4" Click="InjectAllButton_Clicked">Inject All</Button>
-                            <Button Margin="3" Padding="12,4" Click="EjectAllButton_Clicked"
-                                    ToolTip="Eject characters running this activity only">Eject All</Button>
-                        </StackPanel>
-                    </DockPanel>
+                    <StackPanel Margin="3" Orientation="Horizontal">
+                        <Button Margin="3" Padding="12,4" Click="InjectButton_Clicked" IsEnabled="{Binding CanInject}">Inject</Button>
+                        <Button Margin="3" Padding="12,4" Click="EjectButton_Clicked" IsEnabled="{Binding CanEject}">Eject</Button>
+                        <Button Margin="3" Padding="12,4" Click="InjectAllButton_Clicked">Inject All</Button>
+                        <Button Margin="3" Padding="12,4" Click="EjectAllButton_Clicked"
+                                ToolTip="Eject characters running this activity only">Eject All</Button>
+                    </StackPanel>
                     <TextBlock Text="{Binding InjectionHint}" TextWrapping="Wrap" Margin="8,0,8,7"/>
                     <TextBlock Margin="8,0,8,7" TextWrapping="Wrap"
                                Visibility="{Binding ActivityHasNoPlugins, Converter={StaticResource BoolToVisibleConverter}}"
@@ -260,5 +255,11 @@
                 </DataGrid>
             </DockPanel>
         </Grid>
+        <DockPanel Grid.Row="2" Margin="6,3">
+            <Button DockPanel.Dock="Right" Margin="8,0,0,0" Padding="10,2"
+                    Visibility="{Binding SaveFailed, Converter={StaticResource BoolToVisibleConverter}}"
+                    Click="RetrySave_Click">Retry</Button>
+            <TextBlock Text="{Binding SaveStatus}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+        </DockPanel>
     </Grid>
 </Controls:MetroWindow>

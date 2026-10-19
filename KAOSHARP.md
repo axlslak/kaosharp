@@ -1,4 +1,4 @@
-# KAOSharp 2.7.17
+# KAOSharp 2.7.18
 
 Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-knows-best/aosharp), initially imported from commit `d55eb12b5a763e5ed65851e69c50343de6c6d73c`. Version2.7.11 integrates the net source changes from [Knows Modded AOSharp](https://gitlab.com/aosharp-plus/aosp.knows-aosharp-mods), master commit `5eb65c1053748dad82d16490aca3eaaec01432dc`, also present at [sdts-group/knows-aosharp-mods](https://gitlab.com/sdts-group/knows-aosharp-mods). All upstream authorship and notices remain intact.
 
@@ -97,3 +97,11 @@ Retain the existing WPF TabControl/TabItem and MahApps1.6.5 templates. Selected 
 Selection marks the page being viewed; it does not switch an injected character's activity or represent runtime ownership. Existing + column-header naming, library startup, horizontal scrolling, staged selections and all injection/configuration behavior remain. No custom tab renderer, new package, close/drag/shrink behavior or automatic runtime tab colouring introduced.
 
 Exact title/application/injector/bootstrap file/informational versions2.7.17, binding identities/dependencies unchanged. Source/diff/XML/pinned template/trigger and publication review only; no builds/tests/releases/CI or post-change Windows rendering confirmation.
+
+## 2.7.18 — setup changes save automatically
+
+Remove the redundant Save buttons from Plugin list and activity views. Existing completed-name, pool-membership, character-selection and library add/remove actions continue to save immediately. Enter or accepted focus loss commits an activity name; unfinished or invalid names remain drafts. Setup instructions no longer ask for a separate Save action.
+
+A shared status line starts with Changes save automatically, reports Saved after a successful write, and keeps a failure message with Retry available on either view after a write error. The existing error dialog retains details; overlapping failures do not open duplicate dialogs. Closing retries a failed write and asks before discarding any still-unsaved changes, with keeping the window open as the default. Saving does not apply changes to running injections.
+
+Exact title/application/injector/bootstrap file/informational versions2.7.18; assembly identities, dependencies, configuration format, theme resources and injection behavior unchanged. Static source/diff/XML/event-binding and publication review only; no builds, tests, releases, CI or Windows runtime verification.

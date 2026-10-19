@@ -35,6 +35,9 @@ namespace AOSharp
         private bool _ready;
         private bool _batchingLibraryChanges;
         private string _setupMessage = "Add your plugin DLLs, then use + to create an activity.";
+        private string _saveStatus = "Changes save automatically.";
+        private bool _saveFailed;
+        private bool _saveErrorDialogOpen;
 
         public ObservableCollection<KeyValuePair<string, PluginModel>> LibraryPlugins { get; } =
             new ObservableCollection<KeyValuePair<string, PluginModel>>();
@@ -46,6 +49,18 @@ namespace AOSharp
         {
             get => _setupMessage;
             private set { _setupMessage = value; OnPropertyChanged(nameof(SetupMessage)); }
+        }
+
+        public string SaveStatus
+        {
+            get => _saveStatus;
+            private set { _saveStatus = value; OnPropertyChanged(nameof(SaveStatus)); }
+        }
+
+        public bool SaveFailed
+        {
+            get => _saveFailed;
+            private set { _saveFailed = value; OnPropertyChanged(nameof(SaveFailed)); }
         }
 
         public bool HasProfileSelected => _activeActivity != null && _activeProfile?.IsActive == true;
@@ -207,7 +222,7 @@ namespace AOSharp
             column.Header = name;
             column.CellTemplate = CreateMembershipTemplate(activityToAdd, true);
             AddActivityTab(activityToAdd);
-            SetupMessage = "Tick the plugins available in " + name + ", save, then open its tab.";
+            SetupMessage = "Tick the plugins available in " + name + ", then open its tab.";
             return true;
         }
 
@@ -283,30 +298,44 @@ namespace AOSharp
             await SaveConfigurationAsync();
         }
 
-        private async void SaveSetup_Click(object sender, RoutedEventArgs e)
+        private async void RetrySave_Click(object sender, RoutedEventArgs e)
         {
-            if (!CommitPendingActivity())
-            {
-                WorkspaceTabs.SelectedItem = LibraryTab;
-                FocusActivityName();
-                return;
-            }
-            if (await SaveConfigurationAsync())
-                SetupMessage = "Setup saved. Open an activity tab to choose plugins for each character.";
+            await SaveConfigurationAsync();
         }
 
-        private async Task<bool> SaveConfigurationAsync()
+        private Exception TrySaveConfiguration()
         {
             try
             {
                 Config.Save();
-                return true;
+                SaveFailed = false;
+                SaveStatus = "Saved";
+                return null;
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Failed to save launcher setup");
-                await this.ShowMessageAsync("Could not save setup", ex.Message);
-                return false;
+                SaveFailed = true;
+                SaveStatus = "Changes could not be saved.";
+                return ex;
+            }
+        }
+
+        private async Task SaveConfigurationAsync()
+        {
+            Exception error = TrySaveConfiguration();
+            if (error == null || _saveErrorDialogOpen)
+                return;
+
+            _saveErrorDialogOpen = true;
+            try
+            {
+                await this.ShowMessageAsync("Could not save setup", error.Message +
+                    "\n\nYour changes are still available in this window. Use Retry below.");
+            }
+            finally
+            {
+                _saveErrorDialogOpen = false;
             }
         }
 
@@ -613,6 +642,17 @@ namespace AOSharp
 
         protected override void OnClosing(CancelEventArgs e)
         {
+            // Retry a failed write before offering to discard changes still held in memory.
+            if (SaveFailed && TrySaveConfiguration() != null &&
+                MessageBox.Show(this, "Your latest setup changes could not be saved. Close without saving them?",
+                    "Unsaved setup", MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                    MessageBoxResult.No) != MessageBoxResult.Yes)
+            {
+                e.Cancel = true;
+                base.OnClosing(e);
+                return;
+            }
+
             Properties.Settings.Default.WindowLocation = new Point(RestoreBounds.Left, RestoreBounds.Top);
             Properties.Settings.Default.WindowSize = new Size(RestoreBounds.Width, RestoreBounds.Height);
             Properties.Settings.Default.Save();
