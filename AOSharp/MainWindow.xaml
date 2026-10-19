@@ -6,7 +6,7 @@
         AllowDrop="True"
         PreviewDragOver="PluginFiles_DragOver"
         PreviewDrop="PluginFiles_Drop"
-        Title="KAO# 2.7.22"
+        Title="KAO# 2.7.23"
         Icon="Assets/eye.ico" ShowIconOnTitleBar="True"
         ShowSystemMenuOnRightClick="False"
         Background="{DynamicResource WindowBackgroundBrush}"
@@ -32,46 +32,56 @@
             <local:BoolToVisibilityConverter x:Key="BoolToVisibleConverter"
                                              TrueValue="Visible" FalseValue="Collapsed"/>
             <local:PathIsInvalidConverter x:Key="PathIsInvalidConverter"/>
-            <Style x:Key="ActivityTabStyle" TargetType="TabItem" BasedOn="{StaticResource {x:Type TabItem}}">
-                <Setter Property="Background" Value="{DynamicResource ActivityNeutralBrush}"/>
-                <Setter Property="Foreground" Value="{DynamicResource ActivityNeutralTextBrush}"/>
+            <Style x:Key="LibraryTabStyle" TargetType="TabItem" BasedOn="{StaticResource {x:Type TabItem}}">
+                <Setter Property="Background" Value="{DynamicResource WindowBackgroundBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource LibraryTabTextBrush}"/>
                 <Setter Property="Controls:TabControlHelper.UnderlineSelectedBrush"
                         Value="{Binding Foreground, RelativeSource={RelativeSource Self}}"/>
                 <Setter Property="Controls:TabControlHelper.UnderlineMouseOverSelectedBrush"
                         Value="{Binding Foreground, RelativeSource={RelativeSource Self}}"/>
                 <Style.Triggers>
                     <Trigger Property="IsSelected" Value="True">
-                        <Setter Property="Background" Value="{DynamicResource ActivityNeutralBrush}"/>
+                        <Setter Property="Background" Value="{DynamicResource WindowBackgroundBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource LibraryTabTextBrush}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="ActivityTabStyle" TargetType="TabItem" BasedOn="{StaticResource {x:Type TabItem}}">
+                <Setter Property="Background" Value="{DynamicResource WindowBackgroundBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource ActivityNeutralTextBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource WindowsBorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1,0,0,0"/>
+                <Setter Property="Controls:TabControlHelper.UnderlineSelectedBrush"
+                        Value="{Binding Foreground, RelativeSource={RelativeSource Self}}"/>
+                <Setter Property="Controls:TabControlHelper.UnderlineMouseOverSelectedBrush"
+                        Value="{Binding Foreground, RelativeSource={RelativeSource Self}}"/>
+                <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource WindowBackgroundBrush}"/>
                         <Setter Property="Foreground" Value="{DynamicResource ActivityNeutralTextBrush}"/>
                     </Trigger>
                 </Style.Triggers>
             </Style>
             <Style x:Key="InjectedActivityTabStyle" TargetType="TabItem" BasedOn="{StaticResource ActivityTabStyle}">
-                <Setter Property="Background" Value="{DynamicResource ActivityInjectedBrush}"/>
-                <Setter Property="Foreground" Value="{DynamicResource ActivityStatusTextBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource ActivityInitializedTextBrush}"/>
                 <Style.Triggers>
                     <Trigger Property="IsSelected" Value="True">
-                        <Setter Property="Background" Value="{DynamicResource ActivityInjectedBrush}"/>
-                        <Setter Property="Foreground" Value="{DynamicResource ActivityStatusTextBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource ActivityInitializedTextBrush}"/>
                     </Trigger>
                 </Style.Triggers>
             </Style>
             <Style x:Key="FailedActivityTabStyle" TargetType="TabItem" BasedOn="{StaticResource ActivityTabStyle}">
-                <Setter Property="Background" Value="{DynamicResource ActivityFailedBrush}"/>
-                <Setter Property="Foreground" Value="{DynamicResource ActivityStatusTextBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource ActivityFailedTextBrush}"/>
                 <Style.Triggers>
                     <Trigger Property="IsSelected" Value="True">
-                        <Setter Property="Background" Value="{DynamicResource ActivityFailedBrush}"/>
-                        <Setter Property="Foreground" Value="{DynamicResource ActivityStatusTextBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource ActivityFailedTextBrush}"/>
                     </Trigger>
                 </Style.Triggers>
             </Style>
             <Style x:Key="UnknownActivityTabStyle" TargetType="TabItem" BasedOn="{StaticResource ActivityTabStyle}">
-                <Setter Property="Background" Value="{DynamicResource ActivityUnknownBrush}"/>
                 <Setter Property="Foreground" Value="{DynamicResource ActivityUnknownTextBrush}"/>
                 <Style.Triggers>
                     <Trigger Property="IsSelected" Value="True">
-                        <Setter Property="Background" Value="{DynamicResource ActivityUnknownBrush}"/>
                         <Setter Property="Foreground" Value="{DynamicResource ActivityUnknownTextBrush}"/>
                     </Trigger>
                 </Style.Triggers>
@@ -177,7 +187,7 @@
                         Controls:TabControlHelper.UnderlineSelectedBrush="{DynamicResource WindowsSelectionTextBrush}"
                         Controls:TabControlHelper.UnderlineMouseOverSelectedBrush="{DynamicResource WindowsSelectionTextBrush}"
                         SelectionChanged="WorkspaceTabs_SelectionChanged">
-                <TabItem x:Name="LibraryTab" Header="Plugin list" Padding="14,5"/>
+                <TabItem x:Name="LibraryTab" Header="Plugin list" Padding="14,5" Style="{StaticResource LibraryTabStyle}"/>
                 <TabItem x:Name="NewActivityTab" Padding="0" IsTabStop="False" HeaderTemplate="{x:Null}">
                     <TabItem.Header>
                         <Button Content="+" Width="32" Height="28" MinWidth="32" MinHeight="28"
