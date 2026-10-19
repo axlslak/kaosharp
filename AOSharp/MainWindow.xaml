@@ -6,7 +6,7 @@
         AllowDrop="True"
         PreviewDragOver="PluginFiles_DragOver"
         PreviewDrop="PluginFiles_Drop"
-        Title="KAO# 2.7.13"
+        Title="KAO# 2.7.14"
         Width="1000" Height="500" MinWidth="1000" MinHeight="450">
     <Controls:MetroWindow.RightWindowCommands>
         <Controls:WindowCommands>

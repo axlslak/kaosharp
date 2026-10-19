@@ -82,6 +82,10 @@ namespace AOSharp
             DataContext = this;
             InitializeComponent();
 
+            if (Config.LibraryRecoveryError != null)
+                Loaded += async (sender, args) =>
+                    await this.ShowMessageAsync("Plugin list", Config.LibraryRecoveryError);
+
             foreach (Activity activity in Config.Activities)
             {
                 AddActivityTab(activity);

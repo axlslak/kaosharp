@@ -1,4 +1,4 @@
-# KAOSharp 2.7.13
+# KAOSharp 2.7.14
 
 Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-knows-best/aosharp), initially imported from commit `d55eb12b5a763e5ed65851e69c50343de6c6d73c`. Version2.7.11 integrates the net source changes from [Knows Modded AOSharp](https://gitlab.com/aosharp-plus/aosp.knows-aosharp-mods), master commit `5eb65c1053748dad82d16490aca3eaaec01432dc`, also present at [sdts-group/knows-aosharp-mods](https://gitlab.com/sdts-group/knows-aosharp-mods). All upstream authorship and notices remain intact.
 
@@ -63,3 +63,9 @@ Selections continue to stage the next injection while the current snapshot runs.
 This is a fresh setup format in launcher.json beside the launcher, containing the library, activity pools and per-character selections. The earlier config.json and userPluginProfiles.json are neither loaded nor rewritten. It is not a profile migration. Activity rename/delete/reordering, reinject and in-game switching are outside this step.
 
 Exact window/application/executable/bootstrap file and informational versions advance to2.7.13; assembly identities and dependency versions remain unchanged. Source review, XML parsing and publication checks only. No builds, tests, injection, releases or automatic CI; compilation, appearance and in-game behavior await user verification.
+
+## 2.7.14 — retain the registered plugin catalogue
+
+Version2.7.13 started reading launcher.json but ignored the existing DLL catalogue in config.json, making Plugin list appear empty. Restore only that catalogue when the new setup has not initialized its library. Merge missing plugin keys without replacing current entries or activity settings; do not import old character selections or named profiles. Save records the catalogue and initialized marker, so an intentional Remove All stays empty on later launches. Original config/profile files remain untouched. Actual read errors are shown at startup while the current setup remains available; failed recovery can be retried on a later launch.
+
+Only setup loading, error reporting, documentation and exact2.7.14 version fields change. Activity behavior, bootstrap lifecycle, binding identities and dependencies are retained. Source/XML/publication review only; no builds/tests/releases/CI or runtime confirmation.
