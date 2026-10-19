@@ -15,6 +15,7 @@ namespace AOSharp
         private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
         private const int SW_RESTORE = 9;
         private static Mutex _mutex;
+        private WindowsTheme _windowsTheme;
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -36,7 +37,14 @@ namespace AOSharp
                 return;
             }
 
+            _windowsTheme = new WindowsTheme(this);
             base.OnStartup(e);
+        }
+
+        protected override void OnExit(ExitEventArgs e)
+        {
+            _windowsTheme?.Dispose();
+            base.OnExit(e);
         }
     }
 }

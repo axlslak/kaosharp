@@ -1,4 +1,4 @@
-# KAOSharp 2.7.15
+# KAOSharp 2.7.16
 
 Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-knows-best/aosharp), initially imported from commit `d55eb12b5a763e5ed65851e69c50343de6c6d73c`. Version2.7.11 integrates the net source changes from [Knows Modded AOSharp](https://gitlab.com/aosharp-plus/aosp.knows-aosharp-mods), master commit `5eb65c1053748dad82d16490aca3eaaec01432dc`, also present at [sdts-group/knows-aosharp-mods](https://gitlab.com/sdts-group/knows-aosharp-mods). All upstream authorship and notices remain intact.
 
@@ -77,3 +77,15 @@ Inherit the installed MahApps1.6.5 grid/cell/header/row templates instead of fal
 The activity view uses the same grid styles. The character list retains its MahApps item template, and column-name editors use themed background/text/caret/border brushes. Remove excess padding inside the small + button so its symbol is visible. App.xaml still selects BaseDark; no Windows theme detection or dependency upgrade is introduced. Brush/style names were checked against the pinned MahApps1.6.5 source, including matching BaseLight palette definitions; this is not a rendered light-theme validation.
 
 Exact application/window/executable/bootstrap versions advance to2.7.15. Configuration, activity selections, injection and bootstrap behavior are unchanged. Source/XML/publication review only; no builds/tests/releases/CI or post-change Windows rendering validation.
+
+## 2.7.16 — Windows supplies the colours
+
+Remove the forced Blue/BaseDark dictionaries. WindowsTheme fills the existing MahApps colour roles before the first window opens and refreshes them on Windows preference/high-contrast notifications, marshalled to the WPF dispatcher and detached at exit. Windows UISettings supplies application background/foreground, accent and available surface/border/disabled roles. A contrast scheme uses SystemColors directly, preserving its window/control/menu and highlight/text pairs. If modern APIs are unavailable, native system colours remain the fallback. No RGB light/dark presets, theme picker, package upgrade or new SDK reference is added.
+
+The small UISettings interop boundary uses documented Windows Runtime activation and the Microsoft Windows ABI for IUISettings/IUISettings3; acquired interfaces, HSTRING and successful runtime initialization are balanced on every path. Optional newer colour roles can fall back to the Windows foreground/background pair. Accent selection text is chosen from those two Windows-supplied inks for contrast. Existing control templates still determine layout and some interactions: this uses Windows-reported colour roles, not a pixel-for-pixel reproduction of every Windows or third-party skin.
+
+Register the Windows-supplied resource dictionary with the pinned toolkit so its existing message dialogs can detect the theme. Named solid brushes retain their identity and update in place, including references held by an already open dialog. The progress brush retains the toolkit's gradient brush type. Windows settings are read only; no personalization settings are written.
+
+Both launcher windows, grid/header/editor/selection surfaces and toolkit brush roles follow these resources. Fixed red/green/orange row text is replaced by status words and typographic emphasis; initialized rows are semibold, failed/missing-file rows bold, loading italic, injected characters bold with their running activity still shown. Missing DLLs have an explicit tooltip. Selection uses its matched Windows text/background pair. Tab captions use ordinary readable text and emphasize the selected tab; the + header keeps its button content.
+
+Exact title/application/injector/bootstrap file and informational versions2.7.16; assembly identities, dependencies, configuration and activity/injection behavior retained. Source/diff/XML/resource/ABI/publication review only. No builds/tests/releases/CI; Windows rendering, live colour-change notifications and injection remain unverified by this source-only delivery.

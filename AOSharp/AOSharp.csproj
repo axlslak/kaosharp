@@ -27,7 +27,7 @@
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
     <ApplicationRevision>0</ApplicationRevision>
-    <ApplicationVersion>2.7.15.0</ApplicationVersion>
+    <ApplicationVersion>2.7.16.0</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
   </PropertyGroup>
@@ -132,6 +132,7 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="BinaryPatternReplacer.cs" />
+    <Compile Include="WindowsTheme.cs" />
     <Compile Include="Data\Directories.cs" />
     <Compile Include="ObservableDictionary.cs" />
     <Compile Include="TweaksWindow.xaml.cs">
