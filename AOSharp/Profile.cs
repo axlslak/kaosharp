@@ -117,6 +117,7 @@ namespace AOSharp
                     ControlDisconnected();
                     LoaderDisconnected = true;
                     _ipcClient = null;
+                    _livePluginPaths = new string[0];
                     SetLiveActivity(null, null);
                     IsInjected = false;
                     foreach (string path in PluginStatuses.Keys.ToArray())
@@ -124,6 +125,7 @@ namespace AOSharp
                 });
                 pipe.Connect();
                 pipe.Send(new LoadAssemblyMessage { Assemblies = paths });
+                _livePluginPaths = paths.ToArray();
                 SetLiveActivity(activityId, activityName);
                 IsInjected = true;
                 return true;
@@ -131,6 +133,7 @@ namespace AOSharp
             catch (Exception e)
             {
                 _ipcClient = null;
+                _livePluginPaths = new string[0];
                 SetLiveActivity(null, null);
                 IsInjected = false;
                 try { pipe?.Disconnect(); } catch { }
@@ -148,9 +151,10 @@ namespace AOSharp
 
             // Breaking the pipe unloads the same bootstrap/plugin domain as before.
             IPCClient pipe = _ipcClient;
-            LoaderReady = false;
+            LoaderReady = EmptyEnvironmentReady = false;
             SupportsProfileControl = false;
             _ipcClient = null;
+            _livePluginPaths = new string[0];
             SetLiveActivity(null, null);
             IsInjected = false;
             StatusActivityId = null;

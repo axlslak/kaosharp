@@ -35,6 +35,10 @@ namespace AOSharp.Bootstrap
         private bool _pluginsLoaded;
 
 
+        [ThreadStatic]
+        private static bool _processingChatInput;
+        [ThreadStatic]
+        private static bool _launcherCommandConsumed;
         private string _lastChatInput;
         private IntPtr _lastChatInputWindowPtr;
 
@@ -397,19 +401,41 @@ namespace AOSharp.Bootstrap
         {
             StdString tokenized = StdString.Create();
             ChatGUIModule_t.ExpandChatTextArgs(tokenized.Pointer, pCmdText);
+            string previousInput = _lastChatInput;
+            IntPtr previousWindow = _lastChatInputWindowPtr;
             _lastChatInput = tokenized.ToString();
             _lastChatInputWindowPtr = pWindow;
 
-            return CommandInterpreter_c.ProcessChatInput(pThis, pWindow, pCmdText);
+            bool previous = _processingChatInput;
+            bool previousConsumed = _launcherCommandConsumed;
+            _processingChatInput = true;
+            _launcherCommandConsumed = false;
+            try { return CommandInterpreter_c.ProcessChatInput(pThis, pWindow, pCmdText); }
+            finally
+            {
+                _processingChatInput = previous;
+                _launcherCommandConsumed = previousConsumed;
+                if (previous)
+                {
+                    _lastChatInput = previousInput;
+                    _lastChatInputWindowPtr = previousWindow;
+                }
+            }
         }
 
         public IntPtr GetCommand_Hook(IntPtr pThis, IntPtr pCmdText, bool unk)
         {
+            // Built-in launcher controls own these verbs, including when the game knows the same name.
+            if (_processingChatInput && (_launcherCommandConsumed || TryLauncherCommand(_lastChatInput)))
+            {
+                // Native lookup may run more than once or with different flags; enqueue the input once.
+                _launcherCommandConsumed = true;
+                return IntPtr.Zero;
+            }
             IntPtr result;
             if ((result = CommandInterpreter_c.GetCommand(pThis, pCmdText, unk)) == IntPtr.Zero && unk)
             {
-                if (!TryProfileCommand(_lastChatInput))
-                    _pluginProxy?.UnknownChatCommand(_lastChatInputWindowPtr, _lastChatInput);
+                _pluginProxy?.UnknownChatCommand(_lastChatInputWindowPtr, _lastChatInput);
             }
 
             return result;

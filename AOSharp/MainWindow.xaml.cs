@@ -101,6 +101,9 @@ namespace AOSharp
                     if (_activeProfile.LiveActivityId != _activeActivity.Id)
                         return _activeProfile.Name + " is running " + _activeProfile.LiveActivityName +
                                ". Reinject moves this character to the selected activity.";
+                    if (_activeProfile.LivePluginPaths.Length == 0)
+                        return _activeProfile.EmptyEnvironmentReady ? "Connected with no plugins loaded. Use /load <short name> to load one." :
+                            _activeProfile.SwitchStatus;
                     return "Running this activity. Reinject applies your staged plugin choices.";
                 }
                 return "Choose the plugins for " + _activeProfile.Name + ", then Inject.";
@@ -334,8 +337,11 @@ namespace AOSharp
 
         private static ActivityState ProfileActivityState(Profile profile)
         {
-            if (profile.IsSwitching || profile.RequiresRestart || (profile.IsInjected && !profile.IsRuntimeCurrent) || !profile.IsActive || profile.LoaderDisconnected || profile.PluginStatuses.Count == 0)
+            if (profile.IsSwitching || profile.RequiresRestart || (profile.IsInjected && !profile.IsRuntimeCurrent) || !profile.IsActive || profile.LoaderDisconnected)
                 return ActivityState.Unknown;
+            if (profile.PluginStatuses.Count == 0)
+                return profile.IsInjected && profile.LoaderReady && profile.LivePluginPaths.Length == 0 ?
+                    (profile.EmptyEnvironmentReady ? ActivityState.Normal : ActivityState.Failed) : ActivityState.Unknown;
             if (profile.PluginStatuses.Values.All(status => status.State == PluginLoadState.Failed))
                 return ActivityState.Failed;
             if (profile.IsInjected && profile.PluginStatuses.Values.All(status => status.State == PluginLoadState.Initialized))
@@ -349,6 +355,7 @@ namespace AOSharp
             if (profile.IsInjected && !profile.IsRuntimeCurrent) return "Game client changed; old result uncertain";
             if (!profile.IsActive) return "Client no longer detected; result uncertain";
             if (profile.LoaderDisconnected) return "Loader connection lost; result uncertain";
+            if (state == ActivityState.Normal && profile.LivePluginPaths.Length == 0) return "Connected with no plugins loaded";
             if (state == ActivityState.Normal) return "All selected plugins reported initialization";
             if (state == ActivityState.Failed) return "Plugin loading failed";
             if (profile.PluginStatuses.Values.Any(status => status.State == PluginLoadState.Initialized) &&
@@ -775,6 +782,7 @@ namespace AOSharp
         {
             var target = e.OriginalSource as DependencyObject;
             var row = target == null ? null : ItemsControl.ContainerFromElement(LibraryGrid, target) as DataGridRow;
+            _contextPluginKey = row?.Item is KeyValuePair<string, PluginModel> plugin ? plugin.Key : null;
             if (row != null && !row.IsSelected)
                 LibraryGrid.SelectedItem = row.Item;
         }

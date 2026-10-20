@@ -1,4 +1,4 @@
-# KAOSharp 2.7.24
+# KAOSharp 2.7.25
 
 Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-knows-best/aosharp), initially imported from commit `d55eb12b5a763e5ed65851e69c50343de6c6d73c`. Version2.7.11 integrates the net source changes from [Knows Modded AOSharp](https://gitlab.com/aosharp-plus/aosp.knows-aosharp-mods), master commit `5eb65c1053748dad82d16490aca3eaaec01432dc`, also present at [sdts-group/knows-aosharp-mods](https://gitlab.com/sdts-group/knows-aosharp-mods). All upstream authorship and notices remain intact.
 
@@ -130,3 +130,10 @@ Exact title/application/injector/bootstrap file/informational versions2.7.20; as
 Reinject and Reinject All share a serial launcher queue with built-in bootstrap `/ao#` commands and a clickable activity list. Target plugin paths are captured and validated before unloading. The existing native bootstrap and pipe remain connected while the engine thread tears down and unloads the old managed domain, acknowledges cleanup, and loads the new domain. Plugin reports carry operation IDs; only the current generation updates the launcher. A capability/readiness handshake rejects older injected runtimes. Cleanup failure and unconfirmed timeouts block further operations until recovery; other characters may proceed. Browsing and staging remain available, and active/pending activity deletion stays guarded.
 
 See [Switching activities](docs/PROFILE-SWITCHING.md) for commands, batch scope and limits. Unexpected loader disconnects also require a game-client restart because cleanup is unconfirmed. Binding identities/dependencies remain unchanged. Static source/XML/diff/publication review only; no builds, tests, releases, CI or in-game verification. Native effects beyond managed cleanup and plugin-reported initialization remain unproven.
+
+
+## 2.7.25 — short plugin names and in-game toggles
+
+Plugin list adds Short name immediately after Name. Right-click Edit assigns a unique case-insensitive single-word alias (up to 32 characters; blank clears it), saved with the plugin catalogue. Built-in `/load name` and `/unload name`, optionally followed by `all`, submit a one-plugin change to the existing queue. Each character keeps its live activity and other live DLL selection; unrelated staged choices wait for a later explicit Reinject. The requested checkbox saves automatically; loading a registered plugin outside that activity's pool adds membership for that activity only. Empty reloads retain Core/bootstrap and are reported as connected with no plugins. The managed environment reload restarts remaining plugins too.
+
+The control protocol advances to2 and needs matching 2.7.25 launcher/bootstrap with a fresh injection. Native command interception reserves load/unload alongside ao# while injected. No plugin repository or dependency changes. See [Plugin commands](docs/PLUGIN-COMMANDS.md) for scope/failure behavior. Static source/XML/diff/publication review only; no builds/tests/releases/CI or Windows/game verification.

@@ -18,6 +18,7 @@ namespace AOSharp
             public Activity Target;
             public long OperationId;
             public Profile ReplyTo;
+            public string SuccessMessage;
         }
 
         private readonly Queue<ProfileSwitchJob> _switchQueue = new Queue<ProfileSwitchJob>();
@@ -52,6 +53,11 @@ namespace AOSharp
         {
             if (_closed) return;
             var requester = (Profile)sender;
+            if (e.Verb == "load" || e.Verb == "unload")
+            {
+                HandlePluginCommand(requester, e.Verb, e.Arguments);
+                return;
+            }
             string args = e.Arguments.Trim();
             if (args.Length == 0)
             {
@@ -99,31 +105,10 @@ namespace AOSharp
             var skipped = new List<string>();
             foreach (Profile character in characters.Distinct())
             {
-                string reason = null;
                 string[] paths = SelectedPaths(target, character);
-                if (character.RequiresRestart) reason = "restart this game client";
-                else if (character.IsSwitching) reason = "handover already queued";
-                else if (!character.SupportsProfileControl) reason = "matching launcher/bootstrap and fresh injection required";
-                else if (!character.LoaderReady) reason = "plugin startup is still running";
-                else if (paths.Length == 0) reason = "no plugins selected";
-                else if (paths.Any(path => !File.Exists(path))) reason = "selected plugin file is missing";
-                else
-                {
-                    try
-                    {
-                        if (paths.Length > 1024 || new ProfileControlMessage { Kind = ProfileControlKind.Reload,
-                                Assemblies = paths }.Serialize().Length > ushort.MaxValue)
-                            reason = "plugin selection exceeds the loader message limit";
-                    }
-                    catch (Exception ex) { reason = ex.Message; }
-                }
-                if (reason == null && character.TryQueueSwitch(target.Id, target.Name, paths, out long operation))
-                {
-                    _switchQueue.Enqueue(new ProfileSwitchJob { Character = character, Target = target,
-                        OperationId = operation, ReplyTo = replyTo });
+                if (TryQueueHandover(target, character, paths, replyTo, false, null, out string reason))
                     queued++;
-                }
-                else skipped.Add(character.Name.Trim() + ": " + (reason ?? "loader is unavailable"));
+                else skipped.Add(character.Name.Trim() + ": " + reason);
             }
             SetupMessage = "Queued " + queued + " handover(s) to " + target.Name + "." +
                 (skipped.Count == 0 ? "" : " Skipped: " + string.Join("; ", skipped));
@@ -131,6 +116,37 @@ namespace AOSharp
             if (replyTo != null) _ = replyTo.SendGameTextAsync(EscapeChat("AO#: " + SetupMessage));
             RefreshRuntimeControls();
             if (!_drainingSwitchQueue) _ = DrainSwitchQueueAsync();
+        }
+
+        private bool TryQueueHandover(Activity target, Profile character, string[] paths, Profile replyTo,
+            bool allowEmpty, string successMessage, out string reason)
+        {
+            reason = null;
+            if (character.RequiresRestart) reason = "restart this game client";
+            else if (character.IsSwitching) reason = "handover already queued";
+            else if (!character.SupportsProfileControl) reason = "matching launcher/bootstrap and fresh injection required";
+            else if (!character.LoaderReady) reason = "plugin startup is still running";
+            else if (!allowEmpty && paths.Length == 0) reason = "no plugins selected";
+            else if (paths.Any(path => !File.Exists(path))) reason = "selected plugin file is missing";
+            else
+            {
+                try
+                {
+                    if (paths.Length > 1024 || new ProfileControlMessage { Kind = ProfileControlKind.Reload,
+                            Assemblies = paths }.Serialize().Length > ushort.MaxValue)
+                        reason = "plugin selection exceeds the loader message limit";
+                }
+                catch (Exception ex) { reason = ex.Message; }
+            }
+            if (reason != null) return false;
+            if (!character.TryQueueSwitch(target.Id, target.Name, paths, out long operation))
+            {
+                reason = "loader is unavailable";
+                return false;
+            }
+            _switchQueue.Enqueue(new ProfileSwitchJob { Character = character, Target = target,
+                OperationId = operation, ReplyTo = replyTo, SuccessMessage = successMessage });
+            return true;
         }
 
         private async Task DrainSwitchQueueAsync()
@@ -143,7 +159,8 @@ namespace AOSharp
                     ProfileSwitchJob job = _switchQueue.Dequeue();
                     string error = await job.Character.RunQueuedSwitchAsync(job.OperationId, _switchLifetime.Token);
                     if (_closed) return;
-                    string result = job.Character.Name.Trim() + ": " + (error ?? "now running " + job.Target.Name + ".");
+                    string result = job.Character.Name.Trim() + ": " +
+                        (error ?? job.SuccessMessage ?? "now running " + job.Target.Name + ".");
                     SetupMessage = result;
                     HandoverSummary = result;
                     if (job.ReplyTo != null) await job.ReplyTo.SendGameTextAsync(EscapeChat("AO#: " + result));

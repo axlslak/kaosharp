@@ -4,12 +4,12 @@ using Newtonsoft.Json;
 
 namespace AOSharp.Bootstrap.IPC
 {
-    public enum ProfileControlKind : byte { Hello, Ready, Command, Reply, Reload, Progress }
+    public enum ProfileControlKind : byte { Hello, Ready, Command, Reply, Reload, Progress, PluginCommand }
     public enum ProfileReloadStage : byte { Unloading, Loading, Completed, Failed, CleanupFailed, Rejected }
 
     public class ProfileControlMessage : IPCMessage
     {
-        public const int ProtocolVersion = 1;
+        public const int ProtocolVersion = 2;
         public ProfileControlKind Kind;
         public long OperationId;
         public ProfileReloadStage Stage;

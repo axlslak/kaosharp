@@ -27,7 +27,7 @@
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
     <ApplicationRevision>0</ApplicationRevision>
-    <ApplicationVersion>2.7.24.0</ApplicationVersion>
+    <ApplicationVersion>2.7.25.0</ApplicationVersion>
     <ApplicationIcon>Assets\eye.ico</ApplicationIcon>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
@@ -169,6 +169,7 @@
     <Compile Include="Profile.cs" />
     <Compile Include="Profile.Switching.cs" />
     <Compile Include="MainWindow.Switching.cs" />
+    <Compile Include="MainWindow.PluginControl.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>
     </Compile>

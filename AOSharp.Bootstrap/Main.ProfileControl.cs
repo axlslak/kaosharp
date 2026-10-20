@@ -27,18 +27,26 @@ namespace AOSharp.Bootstrap
                 _controlInputs.Enqueue(control);
         }
 
-        private bool TryProfileCommand(string input)
+        private bool TryLauncherCommand(string input)
         {
             string command = (input ?? "").Trim();
-            if (command.StartsWith("/")) command = command.Substring(1);
+            if (!command.StartsWith("/")) return false;
+            command = command.Substring(1);
             int split = command.IndexOfAny(new[] { ' ', '\t' });
             string verb = split < 0 ? command : command.Substring(0, split);
-            if (!verb.Equals("ao#", StringComparison.OrdinalIgnoreCase)) return false;
+            bool profileCommand = verb.Equals("ao#", StringComparison.OrdinalIgnoreCase);
+            bool pluginCommand = verb.Equals("load", StringComparison.OrdinalIgnoreCase) ||
+                verb.Equals("unload", StringComparison.OrdinalIgnoreCase);
+            if (!profileCommand && !pluginCommand) return false;
             string args = split < 0 ? "" : command.Substring(split + 1).Trim();
-            if (args.Length > 512)
-                _controlReplies.Enqueue("AO#: profile command is too long.");
+            string requestText = profileCommand ? args : verb.ToLowerInvariant() + " " + args;
+            if (requestText.Length > 512)
+            {
+                if (_controlReplies.Count < 64) _controlReplies.Enqueue("AO#: command is too long.");
+            }
             else if (_statusQueue.Count < 512)
-                _statusQueue.Enqueue(new ProfileControlMessage { Kind = ProfileControlKind.Command, Text = args });
+                _statusQueue.Enqueue(new ProfileControlMessage { Kind = profileCommand ? ProfileControlKind.Command :
+                    ProfileControlKind.PluginCommand, Text = requestText });
             return true;
         }
 
@@ -54,7 +62,7 @@ namespace AOSharp.Bootstrap
             while (_controlInputs.TryDequeue(out ProfileControlMessage request))
             {
                 if (request.OperationId <= _operationId || !_readyAnnounced || _activeReload != null ||
-                    _retryDelay.IsRunning || _cleanupFailed || request.Assemblies.Length == 0 ||
+                    _retryDelay.IsRunning || _cleanupFailed ||
                     request.Assemblies.Any(string.IsNullOrWhiteSpace))
                 {
                     Progress(request, ProfileReloadStage.Rejected, "Loader is not ready for a handover.");

@@ -26,3 +26,6 @@ The queue waits for loader acknowledgments rather than simulating rapid Eject/In
 Chat replies need a functioning managed Core and may be unavailable after cleanup or Core failure; the launcher retains the result. The ordinary manual Eject/Inject path still uses its existing native teardown behavior.
 
 This is a source-only delivery. Windows/game execution, literal `#` handling by the client, clickable links and macros have not been runtime verified.
+
+
+Since 2.7.25, [short plugin commands](PLUGIN-COMMANDS.md) can change one plugin inside the running activity, including unloading the last plugin while retaining Core/bootstrap for future commands. These use protocol2; use the matching current launcher and bootstrap with a fresh injection. Ordinary empty-selection Reinject still reports no plugins selected.

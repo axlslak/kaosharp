@@ -14,7 +14,8 @@ namespace AOSharp
     public sealed class ProfileCommandEventArgs : EventArgs
     {
         public string Arguments { get; }
-        public ProfileCommandEventArgs(string arguments) { Arguments = arguments; }
+        public string Verb { get; }
+        public ProfileCommandEventArgs(string arguments, string verb = "ao#") { Arguments = arguments; Verb = verb; }
     }
 
     public partial class Profile
@@ -40,6 +41,9 @@ namespace AOSharp
         private long _sessionStartTicks;
         private string _pendingActivityName;
         private string[] _pendingPaths;
+        private string[] _livePluginPaths = new string[0];
+        [JsonIgnore] public string[] LivePluginPaths => _livePluginPaths.ToArray();
+        [JsonIgnore] public bool EmptyEnvironmentReady { get; private set; }
         private TaskCompletionSource<string> _switchCompletion;
 
         private bool SameProcess()
@@ -79,6 +83,7 @@ namespace AOSharp
             _sessionStartTicks = Process.StartTime.ToUniversalTime().Ticks;
             _statusOperationId = 0;
             _pendingOperationId = 0;
+            EmptyEnvironmentReady = false;
             SupportsProfileControl = LoaderReady = IsSwitching = RequiresRestart = false;
             SwitchStatus = null;
             PendingActivityId = null;
@@ -113,6 +118,14 @@ namespace AOSharp
                     ProfileCommandRequested?.Invoke(this, new ProfileCommandEventArgs(message.Text));
                 return;
             }
+            if (message.Kind == ProfileControlKind.PluginCommand)
+            {
+                if (message.Text.Length > 512 || !SameProcess()) return;
+                string[] parts = message.Text.Split(new[] { ' ', '\t' }, 2, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length > 0 && (parts[0] == "load" || parts[0] == "unload"))
+                    ProfileCommandRequested?.Invoke(this, new ProfileCommandEventArgs(parts.Length == 2 ? parts[1] : "", parts[0]));
+                return;
+            }
             if (message.Kind != ProfileControlKind.Progress || message.OperationId != _pendingOperationId ||
                 _pendingOperationId == 0) return;
 
@@ -123,6 +136,8 @@ namespace AOSharp
                     break;
                 case ProfileReloadStage.Loading:
                     _statusOperationId = message.OperationId;
+                    EmptyEnvironmentReady = false;
+                    _livePluginPaths = _pendingPaths.ToArray();
                     SetLiveActivity(PendingActivityId, _pendingActivityName);
                     StatusActivityId = PendingActivityId;
                     PluginStatuses.Clear();
@@ -141,6 +156,7 @@ namespace AOSharp
                     FinishSwitch(message.Text, false);
                     break;
                 case ProfileReloadStage.Completed:
+                    EmptyEnvironmentReady = _pendingPaths.Length == 0;
                     FinishSwitch(null, false);
                     break;
             }
@@ -225,7 +241,7 @@ namespace AOSharp
 
         private void ControlDisconnected()
         {
-            SupportsProfileControl = LoaderReady = false;
+            SupportsProfileControl = LoaderReady = EmptyEnvironmentReady = false;
             if (IsSwitching || _pendingOperationId != 0)
                 FinishSwitch("Loader disconnected during handover. Restart this game client.", true);
             else

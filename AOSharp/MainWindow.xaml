@@ -6,7 +6,7 @@
         AllowDrop="True"
         PreviewDragOver="PluginFiles_DragOver"
         PreviewDrop="PluginFiles_Drop"
-        Title="KAO# 2.7.24"
+        Title="KAO# 2.7.25"
         Icon="Assets/eye.ico" ShowIconOnTitleBar="True"
         ShowSystemMenuOnRightClick="False"
         Background="{DynamicResource WindowBackgroundBrush}"
@@ -212,12 +212,17 @@
                       PreviewMouseRightButtonDown="LibraryGrid_PreviewMouseRightButtonDown">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Name" Binding="{Binding Value.Name}" SortMemberPath="Value.Name" Width="220"/>
+                    <DataGridTextColumn Header="Short name" Binding="{Binding Value.ShortName}" SortMemberPath="Value.ShortName" Width="110"/>
                     <!-- Activity membership columns are inserted here, before version/source. -->
                     <DataGridTextColumn Header="Version" Binding="{Binding Value.Version}" SortMemberPath="Value.Version" Width="100"/>
                     <DataGridTextColumn Header="Source" Binding="{Binding Value.Path}" SortMemberPath="Value.Path" Width="*" MinWidth="200"/>
                 </DataGrid.Columns>
                 <DataGrid.ContextMenu>
-                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
+                                 Opened="LibraryContextMenu_Opened" Closed="LibraryContextMenu_Closed">
+                        <MenuItem x:Name="EditPluginShortNameMenuItem" Header="Edit" Click="EditPluginShortName_Click"
+                                  ToolTip="Edit this plugin's short name for /load and /unload"/>
+                        <Separator/>
                         <MenuItem Header="Remove selected plugins" Click="RemoveSelectedPlugins_Click"/>
                         <MenuItem Header="Remove All" Click="RemoveAllPlugins_Click"/>
                         <Separator/>

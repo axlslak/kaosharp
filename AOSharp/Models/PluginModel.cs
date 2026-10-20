@@ -14,6 +14,13 @@ namespace AOSharp
     {
         public string Name { get; set; }
 
+        private string _shortName = "";
+        public string ShortName
+        {
+            get => _shortName;
+            set { _shortName = value ?? ""; OnPropertyChanged(nameof(ShortName)); }
+        }
+
         public string Version { get; set; }
 
         public string Path { get; set; }
