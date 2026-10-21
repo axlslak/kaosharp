@@ -1,4 +1,10 @@
-# KAOSharp 2.7.25
+# KAOSharp 2.7.26
+
+## 2.7.26 — Variant integer reads on both clients
+
+Native settings integer reads now resolve the compatible `Variant.AsInt32` export from the loaded `Utils.dll` once per managed environment. The classic client exports the MSVC `long` return-type name; the new client exports the `int` name. Both use the same 32-bit calling contract. The resolver accepts these two known names and reports a missing module or unsupported export clearly.
+
+The managed method signature and assembly binding identities stay compatible. The change is in `AOSharp.Common.dll` (file version 1.0.1.0, informational version 2.7.26), so deploy the matching rebuilt AOSharp output. Static source/export/disassembly review only; no build, tests, release, CI or in-game verification. This fixes the identified integer-export mismatch; broader new-client handler behavior still needs runtime confirmation.
 
 Personal source fork of [AOSharp by never-knows-best](https://gitlab.com/never-knows-best/aosharp), initially imported from commit `d55eb12b5a763e5ed65851e69c50343de6c6d73c`. Version2.7.11 integrates the net source changes from [Knows Modded AOSharp](https://gitlab.com/aosharp-plus/aosp.knows-aosharp-mods), master commit `5eb65c1053748dad82d16490aca3eaaec01432dc`, also present at [sdts-group/knows-aosharp-mods](https://gitlab.com/sdts-group/knows-aosharp-mods). All upstream authorship and notices remain intact.
 

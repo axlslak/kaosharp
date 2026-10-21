@@ -5,8 +5,29 @@ namespace AOSharp.Common.Unmanaged.Imports
 {
     public class Variant_c
     {
-        [DllImport("Utils.dll", EntryPoint = "?AsInt32@Variant@@QBEJXZ", CallingConvention = CallingConvention.ThisCall)]
-        public static extern int AsInt32(IntPtr pThis);
+        [UnmanagedFunctionPointer(CallingConvention.ThisCall)]
+        private delegate int AsInt32Delegate(IntPtr pThis);
+
+        private static readonly Lazy<AsInt32Delegate> _asInt32 =
+            new Lazy<AsInt32Delegate>(ResolveAsInt32);
+
+        public static int AsInt32(IntPtr pThis) => _asInt32.Value(pThis);
+
+        private static AsInt32Delegate ResolveAsInt32()
+        {
+            IntPtr module = Kernel32.GetModuleHandle("Utils.dll");
+            if (module == IntPtr.Zero)
+                throw new DllNotFoundException("Utils.dll is not loaded.");
+
+            // Both clients return a 32-bit integer, with different MSVC return-type names.
+            IntPtr address = Kernel32.GetProcAddress(module, "?AsInt32@Variant@@QBEJXZ");
+            if (address == IntPtr.Zero)
+                address = Kernel32.GetProcAddress(module, "?AsInt32@Variant@@QBEHXZ");
+            if (address == IntPtr.Zero)
+                throw new EntryPointNotFoundException("Utils.dll exports neither supported Variant.AsInt32 entry point.");
+
+            return Marshal.GetDelegateForFunctionPointer<AsInt32Delegate>(address);
+        }
 
         [DllImport("Utils.dll", EntryPoint = "?AsFloat@Variant@@QBEMXZ", CallingConvention = CallingConvention.ThisCall)]
         public static extern float AsFloat(IntPtr pThis);
