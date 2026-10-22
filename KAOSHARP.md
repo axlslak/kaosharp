@@ -1,4 +1,10 @@
-# KAOSharp 2.7.26
+# KAOSharp 2.7.27
+
+## 2.7.27 — weapon-holder lookup on the new client
+
+Character weapon queries now read the correct weapon-holder pointer for each client: classic offset `0x1D4`, new-client offset `0x1D8`. The shared accessor also supplies weapon enumeration, attacking state and weapon-holder state. `GetWeapon` returns null when no holder is available and uses the same holder for its native lookup and returned weapon wrapper.
+
+This corrects a native access violation caused by passing a different character component to the weapon lookup on the new client. `AOSharp.Core.dll` advances to file version 1.0.1.0 / informational version 2.7.27; binding identities, native function signatures and weapon-item casting stay unchanged. Deploy the matching rebuilt AOSharp output. Static source, captured-memory, native-call and RTTI review only; no builds, tests, releases, CI or in-game verification of the repair. Broader new-client compatibility remains unconfirmed.
 
 ## 2.7.26 — Variant integer reads on both clients
 

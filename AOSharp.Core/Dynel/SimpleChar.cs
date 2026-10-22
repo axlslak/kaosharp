@@ -47,7 +47,7 @@ namespace AOSharp.Core
 
         public bool IsInPlay => (*(MemStruct*)Pointer).IsInPlay;
 
-        public bool IsAttacking => (*(MemStruct*)Pointer).WeaponHolder->AttackingState == 0x02;
+        public bool IsAttacking => WeaponHolder.AttackingState == 0x02;
 
         public bool IsAlive => Health > 0 && !GetIsDying();
 
@@ -64,9 +64,10 @@ namespace AOSharp.Core
         public new bool IsPathing => base.IsPathing;
         public new Vector3 PathingDestination => base.PathingDestination;
 
-        internal IntPtr pWeaponHolder => (IntPtr)(*(MemStruct*)Pointer).WeaponHolder;
+        // The new client stores this pointer four bytes later in SimpleChar_t.
+        internal IntPtr pWeaponHolder => *(IntPtr*)(Pointer + (Game.IsNewEngine ? 0x1D8 : 0x1D4));
 
-        public WeaponHolder WeaponHolder => *(*(MemStruct*)Pointer).WeaponHolder;
+        public WeaponHolder WeaponHolder => *(WeaponHolder*)pWeaponHolder;
 
 
         public SimpleChar(IntPtr pointer) : base(pointer)
@@ -129,7 +130,7 @@ namespace AOSharp.Core
         {
             Dictionary<EquipSlot, WeaponItem> weapons = new Dictionary<EquipSlot, WeaponItem>();
 
-            IntPtr pWeaponHolder = (IntPtr)(*(MemStruct*)Pointer).WeaponHolder;
+            IntPtr pWeaponHolder = this.pWeaponHolder;
 
             if (pWeaponHolder == IntPtr.Zero)
                 return weapons;
@@ -149,6 +150,11 @@ namespace AOSharp.Core
 
         public WeaponItem GetWeapon(int slot)
         {
+            IntPtr pWeaponHolder = this.pWeaponHolder;
+
+            if (pWeaponHolder == IntPtr.Zero)
+                return null;
+
             IntPtr weap = WeaponHolder_t.GetWeapon(pWeaponHolder, (EquipSlot)slot, 0);
 
             if (weap == IntPtr.Zero)
@@ -232,9 +238,6 @@ namespace AOSharp.Core
 
             [FieldOffset(0x154)]
             public IntPtr Name;
-
-            [FieldOffset(0x1D4)]
-            public WeaponHolder* WeaponHolder;
 
             [FieldOffset(0x21C)]
             public bool IsNPC;
