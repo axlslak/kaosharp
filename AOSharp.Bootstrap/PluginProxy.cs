@@ -49,6 +49,8 @@ namespace AOSharp.Bootstrap
         public AttemptingSpellCastDelegate AttemptingSpellCast;
         public delegate void UnknownCommandDelegate(IntPtr pWindow, string command);
         public UnknownCommandDelegate UnknownChatCommand;
+        public delegate bool CommandOverrideDelegate(IntPtr pWindow, string command);
+        public CommandOverrideDelegate CommandOverride;
         public delegate void HandleGroupMessageDelegate(GroupMessageEventArgs args);
         public HandleGroupMessageDelegate HandleGroupMessage;
         public delegate void ContainerOpenedDelegate(Identity identity);
@@ -88,6 +90,9 @@ namespace AOSharp.Bootstrap
         public int GetDynamicIDOverride(string name) => (_coreDelegates?.GetDynamicIDOverride?.Invoke(name)).GetValueOrDefault(0);
 
         public void UnknownChatCommand(IntPtr pWindow, string command) => _coreDelegates?.UnknownChatCommand?.Invoke(pWindow, command);
+
+        public bool TryHandleCommandOverride(IntPtr pWindow, string command) =>
+            _coreDelegates?.CommandOverride?.Invoke(pWindow, command) ?? false;
 
         public void DataBlockToMessage(byte[] datablock) => _coreDelegates?.DataBlockToMessage?.Invoke(datablock);
 
@@ -196,6 +201,7 @@ namespace AOSharp.Bootstrap
                 ClientPerformedSpecialAction = CreateDelegate<CoreDelegates.ClientPerformedSpecialActionDelegate>(assembly, "AOSharp.Core.PerkAction", "OnClientPerformedSpecialAction"),
                 AttemptingSpellCast = CreateDelegate<CoreDelegates.AttemptingSpellCastDelegate>(assembly, "AOSharp.Core.MiscClientEvents", "OnAttemptingSpellCast"),
                 UnknownChatCommand = CreateDelegate<CoreDelegates.UnknownCommandDelegate>(assembly, "AOSharp.Core.UI.Chat", "OnUnknownCommand"),
+                CommandOverride = CreateDelegate<CoreDelegates.CommandOverrideDelegate>(assembly, "AOSharp.Core.UI.Chat", "TryHandleCommandOverride"),
                 HandleGroupMessage = CreateDelegate<CoreDelegates.HandleGroupMessageDelegate>(assembly, "AOSharp.Core.UI.Chat", "OnGroupMessage"),
                 ContainerOpened = CreateDelegate<CoreDelegates.ContainerOpenedDelegate>(assembly, "AOSharp.Core.Inventory.Inventory", "OnContainerOpened"),
                 ButtonPressed = CreateDelegate<CoreDelegates.ButtonPressedDelegate>(assembly, "AOSharp.Core.UI.UIController", "OnButtonPressed"),

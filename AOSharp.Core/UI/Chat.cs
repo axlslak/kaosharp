@@ -14,6 +14,8 @@ namespace AOSharp.Core.UI
     public static class Chat
     {
         private static Dictionary<string, Action<string, string[], ChatWindow>> _customCommands = new Dictionary<string, Action<string, string[], ChatWindow>>();
+        private static readonly Dictionary<string, Func<string, string[], ChatWindow, bool>> _commandOverrides =
+            new Dictionary<string, Func<string, string[], ChatWindow, bool>>(StringComparer.OrdinalIgnoreCase);
         private static ConcurrentQueue<(string, ChatColor)> _messageQueue = new ConcurrentQueue<(string, ChatColor)>();
         public static EventHandler<GroupMessageEventArgs> GroupMessageReceived;
         public static Action<string> FeedbackReceived;
@@ -25,6 +27,23 @@ namespace AOSharp.Core.UI
         {
             if(!_customCommands.ContainsKey(command))
                 _customCommands.Add(command, callback);
+        }
+
+        // Return true only for syntax the plugin owns; false preserves the game's native command.
+        public static void RegisterCommandOverride(string command, Func<string, string[], ChatWindow, bool> callback)
+        {
+            if (string.IsNullOrWhiteSpace(command) || callback == null)
+                throw new ArgumentException("A command name and callback are required.");
+            if (!_commandOverrides.ContainsKey(command))
+                _commandOverrides.Add(command, callback);
+        }
+
+        private static bool TryHandleCommandOverride(IntPtr pWindow, string input)
+        {
+            if (string.IsNullOrWhiteSpace(input) || input[0] != '/') return false;
+            var parts = input.Substring(1).Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0 || !_commandOverrides.TryGetValue(parts[0], out var callback)) return false;
+            return callback(parts[0], parts.Skip(1).ToArray(), new ChatWindow(pWindow));
         }
 
         internal static void Update()

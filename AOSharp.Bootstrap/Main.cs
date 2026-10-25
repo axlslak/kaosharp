@@ -39,6 +39,8 @@ namespace AOSharp.Bootstrap
         private static bool _processingChatInput;
         [ThreadStatic]
         private static bool _launcherCommandConsumed;
+        [ThreadStatic]
+        private static bool _pluginCommandChecked;
         private string _lastChatInput;
         private IntPtr _lastChatInputWindowPtr;
 
@@ -408,13 +410,16 @@ namespace AOSharp.Bootstrap
 
             bool previous = _processingChatInput;
             bool previousConsumed = _launcherCommandConsumed;
+            bool previousPluginChecked = _pluginCommandChecked;
             _processingChatInput = true;
             _launcherCommandConsumed = false;
+            _pluginCommandChecked = false;
             try { return CommandInterpreter_c.ProcessChatInput(pThis, pWindow, pCmdText); }
             finally
             {
                 _processingChatInput = previous;
                 _launcherCommandConsumed = previousConsumed;
+                _pluginCommandChecked = previousPluginChecked;
                 if (previous)
                 {
                     _lastChatInput = previousInput;
@@ -431,6 +436,26 @@ namespace AOSharp.Bootstrap
                 // Native lookup may run more than once or with different flags; enqueue the input once.
                 _launcherCommandConsumed = true;
                 return IntPtr.Zero;
+            }
+            if (_processingChatInput && !_pluginCommandChecked)
+            {
+                // Native command lookup can run repeatedly for one input; dispatch at most once.
+                _pluginCommandChecked = true;
+                try
+                {
+                    if (_pluginProxy?.TryHandleCommandOverride(_lastChatInputWindowPtr, _lastChatInput) == true)
+                    {
+                        _launcherCommandConsumed = true;
+                        return IntPtr.Zero;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Plugin command override failed");
+                    // Do not execute the native command after an uncertain partial plugin action.
+                    _launcherCommandConsumed = true;
+                    return IntPtr.Zero;
+                }
             }
             IntPtr result;
             if ((result = CommandInterpreter_c.GetCommand(pThis, pCmdText, unk)) == IntPtr.Zero && unk)
