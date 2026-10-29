@@ -170,6 +170,7 @@
     <Compile Include="Dynel\Dynel.cs" />
     <Compile Include="Debug.cs" />
     <Compile Include="Game.cs" />
+    <Compile Include="TemporaryUpdateTiming.cs" />
     <Compile Include="IAOPluginEntry.cs" />
     <Compile Include="Playfield\Playfield.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

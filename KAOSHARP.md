@@ -1,4 +1,10 @@
-# KAOSharp 2.7.29
+# KAOSharp 2.7.30
+
+## 2.7.30 — temporary update timing
+
+Adds temporary Core entry/exit timing for Manager Sync area benchmarks. Counters run only while a Sync sample is active; summaries append to the existing per-character sync-benchmark.log at area boundaries. No per-update output is added. Foreground/background work duration, outside-Core gaps and Core-entry-to-Sync delay are separate metrics. Outside-Core time includes native engine, bootstrap/early callbacks and scheduling; it does not identify a deliberate frame limiter. Partial boundary updates are labelled and excluded from completed work counts.
+
+Use matching rebuilt AOSharp 2.7.30 output (Core file 1.0.4.0) with the updated Manager Sync benchmark, then inject a fresh runtime. Remove the temporary Core helper/hooks and Sync benchmark after the trial. Assembly identities and dependencies remain stable. Source-only delivery; compilation and runtime measurements await the owner.
 
 ## 2.7.29 — player and NPC classification on the new client
 
