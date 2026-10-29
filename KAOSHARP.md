@@ -1,4 +1,8 @@
-# KAOSharp 2.7.30
+# KAOSharp 2.7.31
+
+## 2.7.31 — remove temporary update timing
+
+Removes the temporary Core update timing helper and restores the original update body after the benchmark trial. Use the updated Manager Sync without benchmark instrumentation. Core file version is 1.0.5.0 / informational version 2.7.31; assembly identities, dependencies and existing engine-specific corrections remain unchanged. This cleanup does not change background scheduling or movement behavior. Source-only delivery; no builds or tests run.
 
 ## 2.7.30 — temporary update timing
 

@@ -18,7 +18,7 @@ Use `/ao#` in game to list activity choices, `/ao# db1` to switch this character
 
 Plugin list has a **Short name** column immediately after Name. Right-click a plugin and choose **Edit** to assign a unique name such as `map`, `sync`, `handler` or `dd`. Then use `/load map`, `/unload map`, or `/unload help all` in game. These change that plugin in each character's running activity through the same queued handover; other live selections and unrelated staged checkbox edits stay separate. The requested choice saves automatically. Loading can add a registered plugin to that activity's pool. Unloading the last plugin keeps the control connection available for a later `/load`. See [Plugin commands](docs/PLUGIN-COMMANDS.md).
 
-Version **2.7.30** adds temporary Core update timing for the Manager Sync area benchmark. Deploy the matching rebuilt AOSharp output (Core file **1.0.4.0**) and updated Sync, then use a fresh injection. Counters run only during Sync area samples and append work, outside-Core gap and Sync-arrival timings to its existing log. Remove this instrumentation after the trial. Source-only delivery; compilation and runtime verification are pending. The prior engine-specific player/NPC correction remains in place.
+Version **2.7.31** removes the temporary Core update timing after the benchmark trial. Deploy the matching rebuilt AOSharp output (Core file **1.0.5.0**) and updated Manager Sync without benchmark counters, then use a fresh injection. Existing engine-specific corrections remain in place. This cleanup does not change background scheduling or Sync movement. Source-only delivery; compilation and runtime verification are pending.
 
 See [KAOSHARP.md](KAOSHARP.md) for source provenance, behavior and validation limits.
 

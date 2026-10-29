@@ -149,45 +149,36 @@ namespace AOSharp.Core
 
         private static void OnUpdateInternal(float deltaTime)
         {
-            // TEMPORARY benchmark: remove with TemporaryUpdateTiming after the trial.
-            TemporaryUpdateTiming.BeginUpdate();
+            DynelManager.Update();
+
+            if (DynelManager.LocalPlayer == null)
+                return;
+
+            Network.Update();
+
+            Coroutine.Update();
+
+            IPCChannel.UpdateInternal();
+
+            UIController.UpdateViews();
+
+            Item.Update();
+            PerkAction.Update();
+            Spell.Update();
+
+            MovementController.Instance?.Update();
+            CombatHandler.Instance?.Update(deltaTime);
+
             try
             {
-                DynelManager.Update();
-
-                if (DynelManager.LocalPlayer == null)
-                    return;
-
-                Network.Update();
-
-                Coroutine.Update();
-
-                IPCChannel.UpdateInternal();
-
-                UIController.UpdateViews();
-
-                Item.Update();
-                PerkAction.Update();
-                Spell.Update();
-
-                MovementController.Instance?.Update();
-                CombatHandler.Instance?.Update(deltaTime);
-
-                try
-                {
-                    OnUpdate?.Invoke(null, deltaTime);
-                }
-                catch (Exception e)
-                {
-                    Chat.WriteLine(e.Message);
-                }
-
-                Chat.Update();
+                OnUpdate?.Invoke(null, deltaTime);
             }
-            finally
+            catch (Exception e)
             {
-                TemporaryUpdateTiming.EndUpdate();
+                Chat.WriteLine(e.Message);
             }
+
+            Chat.Update();
         }
 
         private static void OnTeleportStarted()
