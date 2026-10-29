@@ -1,4 +1,10 @@
-# KAOSharp 2.7.27
+# KAOSharp 2.7.29
+
+## 2.7.29 — player and NPC classification on the new client
+
+The new client stores the raw NPC flag in SimpleChar_t at 0x220; the classic client uses 0x21C. Core's IsPlayer and IsNpc now use the matching flag location, with engine selection cached once and the existing classic field read retained. Pet exclusion stays unchanged. This corrects classification used by DynelManager.Players/NPCs, including plugins that require a message sender to be a loaded player. No polling, additional scans or diagnostic chat is added.
+
+AOSharp.Core.dll advances to file version 1.0.3.0 / informational version 2.7.29. Deploy it with the matching rebuilt AOSharp output and inject a fresh runtime. Existing plugin binding identities and dependencies remain compatible. Source and captured native/memory review only; compilation and live verification remain pending. Other new-client plugin paths may need separate work.
 
 ## 2.7.27 — weapon-holder lookup on the new client
 

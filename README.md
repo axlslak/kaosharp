@@ -18,6 +18,8 @@ Use `/ao#` in game to list activity choices, `/ao# db1` to switch this character
 
 Plugin list has a **Short name** column immediately after Name. Right-click a plugin and choose **Edit** to assign a unique name such as `map`, `sync`, `handler` or `dd`. Then use `/load map`, `/unload map`, or `/unload help all` in game. These change that plugin in each character's running activity through the same queued handover; other live selections and unrelated staged checkbox edits stay separate. The requested choice saves automatically. Loading can add a registered plugin to that activity's pool. Unloading the last plugin keeps the control connection available for a later `/load`. See [Plugin commands](docs/PLUGIN-COMMANDS.md).
 
+Version **2.7.29** corrects player/NPC classification on the new client in `AOSharp.Core.dll`, retaining the classic client's flag read. Deploy the matching rebuilt AOSharp output and use a fresh injection so plugins use the updated Core. Live compatibility verification is pending.
+
 See [KAOSHARP.md](KAOSHARP.md) for source provenance, behavior and validation limits.
 
 Upstream related projects: [aosharp.bots](https://gitlab.com/never-knows-best/aosharp.bots) and [aosharp-automation](https://gitlab.com/never-knows-best/aosharp-automation).

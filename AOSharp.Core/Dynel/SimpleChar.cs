@@ -13,6 +13,13 @@ namespace AOSharp.Core
 {
     public unsafe class SimpleChar : Dynel
     {
+        // The new client stores the NPC flag four bytes later in SimpleChar_t.
+        private static readonly bool _useNewClientNpcFlag = Game.IsNewEngine;
+
+        private bool IsNpcFlag => _useNewClientNpcFlag
+            ? *(byte*)(Pointer + 0x220) != 0
+            : (*(MemStruct*)Pointer).IsNPC;
+
         public int Health => GetStat(Stat.Health);
 
         public int MaxHealth => GetStat(Stat.MaxHealth);
@@ -29,9 +36,9 @@ namespace AOSharp.Core
 
         public int MissingNano => MaxNano - Nano;
 
-        public bool IsPlayer => !(*(MemStruct*)Pointer).IsNPC;
+        public bool IsPlayer => !IsNpcFlag;
 
-        public bool IsNpc => (*(MemStruct*)Pointer).IsNPC && !IsPet;
+        public bool IsNpc => IsNpcFlag && !IsPet;
 
         public bool IsPet => Flags.HasFlag(CharacterFlags.Pet);
 
