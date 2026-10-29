@@ -14,6 +14,15 @@ namespace AOSharp
     {
         private string _installDirectory;
         private bool _isProcessing;
+        private FullSpeedBackgroundTweak.PatchState _backgroundModeState;
+        private string _backgroundModeStatus;
+
+        public bool IsIdle => !_isProcessing;
+        public string BackgroundModeStatus => _backgroundModeStatus;
+        public bool CanEnableFullSpeedBackground => IsValidInstallDirectory && IsIdle
+            && _backgroundModeState == FullSpeedBackgroundTweak.PatchState.Disabled;
+        public bool CanRestoreBackgroundThrottle => IsValidInstallDirectory && IsIdle
+            && _backgroundModeState == FullSpeedBackgroundTweak.PatchState.Enabled;
 
         public string InstallDirectory
         {
@@ -24,6 +33,7 @@ namespace AOSharp
                 OnPropertyChanged(nameof(InstallDirectory));
                 OnPropertyChanged(nameof(IsValidInstallDirectory));
                 OnPropertyChanged(nameof(CanEnableLargeAddressAware));
+                RefreshBackgroundMode();
             }
         }
 
@@ -90,6 +100,7 @@ namespace AOSharp
 
         private async void EnableLargeAddressAwareButton_Click(object sender, RoutedEventArgs e)
         {
+            if (_isProcessing) return;
             var result = await this.ShowMessageAsync(
                 "Confirmation",
                 "Warning: This will make irreversible modifications to game files, do you want to proceed?",
@@ -104,8 +115,7 @@ namespace AOSharp
             if (result == MessageDialogResult.Affirmative)
             {
                 // Set processing flag
-                _isProcessing = true;
-                OnPropertyChanged(nameof(CanEnableLargeAddressAware));
+                SetProcessing(true);
 
                 // Show progress dialog
                 var progressController = await this.ShowProgressAsync(
@@ -147,10 +157,100 @@ namespace AOSharp
                 finally
                 {
                     // Clear processing flag
-                    _isProcessing = false;
-                    OnPropertyChanged(nameof(CanEnableLargeAddressAware));
+                    SetProcessing(false);
+                    RefreshBackgroundMode();
                 }
             }
+        }
+
+        private void SetProcessing(bool processing)
+        {
+            _isProcessing = processing;
+            OnPropertyChanged(nameof(IsIdle));
+            OnPropertyChanged(nameof(CanEnableLargeAddressAware));
+            OnPropertyChanged(nameof(CanEnableFullSpeedBackground));
+            OnPropertyChanged(nameof(CanRestoreBackgroundThrottle));
+        }
+
+        private void RefreshBackgroundMode()
+        {
+            _backgroundModeState = FullSpeedBackgroundTweak.PatchState.Missing;
+            _backgroundModeStatus = "Select the new-client installation directory.";
+            if (IsValidInstallDirectory)
+            {
+                try
+                {
+                    _backgroundModeState = new FullSpeedBackgroundTweak(InstallDirectory).Inspect();
+                    switch (_backgroundModeState)
+                    {
+                        case FullSpeedBackgroundTweak.PatchState.Disabled:
+                            _backgroundModeStatus = "Full-speed background: disabled.";
+                            break;
+                        case FullSpeedBackgroundTweak.PatchState.Enabled:
+                            _backgroundModeStatus = "Full-speed background: enabled.";
+                            break;
+                        case FullSpeedBackgroundTweak.PatchState.Missing:
+                            _backgroundModeStatus = "Cheetah.dll was not found. This option is for the new client.";
+                            break;
+                        default:
+                            _backgroundModeStatus = "This Cheetah.dll build is not supported; it will not be modified.";
+                            break;
+                    }
+                }
+                catch (Exception error)
+                {
+                    _backgroundModeState = FullSpeedBackgroundTweak.PatchState.Unsupported;
+                    _backgroundModeStatus = error.Message;
+                }
+            }
+            OnPropertyChanged(nameof(BackgroundModeStatus));
+            OnPropertyChanged(nameof(CanEnableFullSpeedBackground));
+            OnPropertyChanged(nameof(CanRestoreBackgroundThrottle));
+        }
+
+        private async void EnableFullSpeedBackgroundButton_Click(object sender, RoutedEventArgs e)
+        {
+            await ChangeBackgroundModeAsync(true);
+        }
+
+        private async void RestoreBackgroundThrottleButton_Click(object sender, RoutedEventArgs e)
+        {
+            await ChangeBackgroundModeAsync(false);
+        }
+
+        private async Task ChangeBackgroundModeAsync(bool enabled)
+        {
+            if (_isProcessing) return;
+            string directory = InstallDirectory;
+            string title;
+            string message;
+            SetProcessing(true);
+            try
+            {
+                await Task.Run(() => new FullSpeedBackgroundTweak(directory).SetEnabled(enabled));
+                title = "Background mode updated";
+                message = enabled
+                    ? "Full-speed background is enabled. Start AO normally. The original DLL backup is retained beside Cheetah.dll."
+                    : "The original background throttle has been restored. Start AO normally.";
+            }
+            catch (Exception error)
+            {
+                title = "Background mode could not be changed";
+                message = error.Message;
+            }
+            finally
+            {
+                SetProcessing(false);
+                RefreshBackgroundMode();
+            }
+            await this.ShowMessageAsync(title, message, MessageDialogStyle.Affirmative,
+                new MetroDialogSettings { AffirmativeButtonText = "OK" });
+        }
+
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            base.OnClosing(e);
+            if (_isProcessing) e.Cancel = true;
         }
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)

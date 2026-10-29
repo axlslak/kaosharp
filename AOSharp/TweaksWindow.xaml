@@ -11,8 +11,10 @@
         Foreground="{DynamicResource TextBrush}"
         TitleForeground="{DynamicResource TextBrush}"
         OverrideDefaultWindowCommandsBrush="{DynamicResource TextBrush}"
-        Height="250" 
-        Width="450"
+        Height="440"
+        MinHeight="440" 
+        Width="560"
+        MinWidth="520"
         WindowStartupLocation="CenterOwner"
         ShowMinButton="False"
         ShowMaxRestoreButton="False">
@@ -22,7 +24,8 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="20,20,20,10">
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20,20,20,10">
             <Grid Margin="0,0,0,15">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -44,7 +47,8 @@
                     <Button Name="BrowseDirectoryButton"
                             Grid.Column="1"
                             Width="75"
-                            Click="BrowseDirectoryButton_Click">
+                            Click="BrowseDirectoryButton_Click"
+                            IsEnabled="{Binding IsIdle}">
                         Browse...
                     </Button>
                 </Grid>
@@ -57,7 +61,31 @@
                     IsEnabled="{Binding CanEnableLargeAddressAware}">
                 Enable large address aware
             </Button>
+
+            <TextBlock Margin="0,18,0,4" FontWeight="SemiBold"
+                       Text="New client: full-speed background" />
+            <TextBlock TextWrapping="Wrap"
+                       Text="Keeps the new client running at full speed in the background, using more CPU/GPU. Close AO and its game launcher before changing this option." />
+            <TextBlock Margin="0,8,0,8" TextWrapping="Wrap"
+                       Text="{Binding BackgroundModeStatus}" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Height="36" Margin="0,0,5,0"
+                        Click="EnableFullSpeedBackgroundButton_Click"
+                        IsEnabled="{Binding CanEnableFullSpeedBackground}">
+                    Enable full-speed background
+                </Button>
+                <Button Grid.Column="1" Height="36" Margin="5,0,0,0"
+                        Click="RestoreBackgroundThrottleButton_Click"
+                        IsEnabled="{Binding CanRestoreBackgroundThrottle}">
+                    Restore background throttle
+                </Button>
+            </Grid>
         </StackPanel>
+        </ScrollViewer>
 
         <StackPanel Grid.Row="1" 
                     Orientation="Horizontal" 
@@ -66,7 +94,8 @@
             <Button Name="CloseButton"
                     Width="75"
                     Click="CloseButton_Click"
-                    IsCancel="True">
+                    IsCancel="True"
+                    IsEnabled="{Binding IsIdle}">
                 Close
             </Button>
         </StackPanel>

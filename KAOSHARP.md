@@ -1,4 +1,14 @@
-# KAOSharp 2.7.31
+# KAOSharp 2.7.32
+
+## 2.7.32 — optional full-speed background for the new client
+
+Tweaks now offers Enable full-speed background and Restore background throttle for the supported new-client Cheetah.dll. The native renderer normally calls Sleep(50) when inactive; this patch bypasses only that inactivity condition, preserving the separate device-loss/render-pause branches and actual focus/input state. It does not depend on injection or Sync, does not change Windows foreground ownership, and may increase CPU/GPU use. Other background or driver delays may remain. Classic-client files and existing large-address-aware handling are untouched.
+
+Close all AO game clients and the AO game launcher, open Tweaks, select the new-client installation directory, and enable the option. The original DLL is retained as Cheetah.dll.aosharp-background-f2fd2bb9019f.bak. Restore uses the verified original backup while also requiring the installed DLL to match the known patched file. Unknown or subsequently updated binaries are rejected; the backup never overwrites a different game update. A game repair/update may remove the patch; inspect its status again afterward.
+
+Supported original SHA-256: f2fd2bb9019f75a1f1a521678f8ed55b24fe0efb47f7a196625e0504cfa8bb90. Patched SHA-256: 17d2ff52861529721ddff8a556042cfdd2dd169cd099aad55d9ab55ec63f8d3a. The only changed byte is the conditional-branch opcode at raw offset 0x15D72B (RVA 0x15E32B), from 75 to EB; the following displacement remains 0D. No game binary is distributed. File changes use an exclusive handle, verified backup, flushed one-byte write, final full-file hash and rollback on write/verification failure. Write access to the game directory is required.
+
+Launcher/application/bootstrap file and informational versions advance to 2.7.32; assembly identities and dependencies stay stable. Core remains file 1.0.5.0 / informational 2.7.31. Source, PE, relocated captured-code, XML, diff and publication review only; no builds, tests, releases or CI. Runtime performance improvement remains unverified.
 
 ## 2.7.31 — remove temporary update timing
 
